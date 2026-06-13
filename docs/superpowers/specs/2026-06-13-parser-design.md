@@ -35,13 +35,15 @@ exports, workflows / memory / scorers.
 
 ## Project layout
 
-Builder lives at repo root. `examples/` is the test fixture. `sample-mastra/` stays as a Mastra-v1
-reference (separate package, untouched).
+Builder lives in `builder/` (its own package). `examples/` stays at the repo root (referenced by
+the smoke script as `../examples`). `sample-mastra/` stays as a Mastra-v1 reference (separate
+package, untouched).
 
 ```
-package.json          # type: module; deps: yaml, zod; dev: typescript, @types/node, tsx
-tsconfig.json
-src/
+builder/
+├── package.json      # type: module; deps: yaml, zod; dev: typescript, @types/node, tsx
+├── tsconfig.json
+└── src/
 ├── schemas.ts        # Zod: ConfigSchema, AgentSchema, ModelSchema
 ├── types.ts          # resolved output types (ParsedProject etc.)
 ├── naming.ts         # kebab-case id → camelCase export var
