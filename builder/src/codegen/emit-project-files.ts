@@ -1,0 +1,51 @@
+import type { ParsedProject } from '../types.js';
+import { VERSIONS } from './versions.js';
+
+export function emitPackageJson(project: ParsedProject): string {
+  const dependencies = {
+    '@mastra/core': VERSIONS['@mastra/core'],
+    '@mastra/loggers': VERSIONS['@mastra/loggers'],
+    ...(project.storage ? { '@mastra/libsql': VERSIONS['@mastra/libsql'] } : {}),
+    zod: VERSIONS.zod,
+  };
+  const pkg = {
+    name: project.name,
+    version: '1.0.0',
+    type: 'module',
+    engines: { node: '>=22.13.0' },
+    scripts: {
+      dev: 'mastra dev',
+      build: 'mastra build',
+      start: 'mastra start',
+    },
+    dependencies,
+    devDependencies: {
+      mastra: VERSIONS.mastra,
+      typescript: VERSIONS.typescript,
+      '@types/node': VERSIONS['@types/node'],
+    },
+  };
+  return JSON.stringify(pkg, null, 2) + '\n';
+}
+
+export function emitTsconfig(): string {
+  const tsconfig = {
+    compilerOptions: {
+      target: 'ES2022',
+      module: 'ES2022',
+      moduleResolution: 'bundler',
+      esModuleInterop: true,
+      forceConsistentCasingInFileNames: true,
+      strict: true,
+      skipLibCheck: true,
+      noEmit: true,
+      outDir: 'dist',
+    },
+    include: ['src/**/*'],
+  };
+  return JSON.stringify(tsconfig, null, 2) + '\n';
+}
+
+export function emitGitignore(): string {
+  return ['node_modules', 'dist', '.mastra', '.env', '*.db', '*.db-*', ''].join('\n');
+}
