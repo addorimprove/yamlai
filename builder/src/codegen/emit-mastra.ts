@@ -22,7 +22,9 @@ export function emitIndex(project: ParsedProject): string {
       `  storage: new LibSQLStore({ id: 'mastra-storage', url: ${JSON.stringify(project.storage.url)} }),`,
     );
   }
-  lines.push(`  logger: new PinoLogger({ name: 'Mastra', level: '${project.logger.level}' }),`);
+  lines.push(
+    `  logger: new PinoLogger({ name: 'Mastra', level: ${JSON.stringify(project.logger.level)} }),`,
+  );
   lines.push(`});`);
   lines.push('');
   return lines.join('\n');

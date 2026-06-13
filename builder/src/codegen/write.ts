@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import type { FileMap } from './types.js';
 import { MARKER_FILE } from './types.js';
 
@@ -36,6 +36,9 @@ export function writeProject(
 
   for (const [relPath, contents] of Object.entries(files)) {
     const dest = join(absOut, relPath);
+    if (dest !== absOut && !dest.startsWith(absOut + sep)) {
+      throw new Error(`Refusing to write: path ${relPath} escapes the output directory.`);
+    }
     mkdirSync(dirname(dest), { recursive: true });
     writeFileSync(dest, contents);
   }

@@ -13,7 +13,8 @@ import {
 } from './emit-project-files.js';
 
 /** Produce the full in-memory file map for a Mastra project from a ParsedProject.
- *  Tool .ts sources are copied verbatim from rootDir; otherwise pure. */
+ *  Tool .ts sources are read verbatim from rootDir; all other content is
+ *  generated in-memory (this function performs no writes). */
 export function generateProject(project: ParsedProject, rootDir: string): FileMap {
   const files: FileMap = {};
 
