@@ -25,18 +25,25 @@ export function parseProject(rootDir: string): ParsedProject {
   const addIssue = (file: string, message: string) =>
     issues.push({ file, message });
 
-  function readYaml(relPath: string): unknown | undefined {
+  // Returns undefined when an issue has been recorded and this file should be skipped.
+  function readYaml(relPath: string): unknown {
     const abs = join(rootDir, relPath);
     if (!existsSync(abs)) {
       addIssue(relPath, 'file not found');
       return undefined;
     }
+    let parsed: unknown;
     try {
-      return parseYaml(readFileSync(abs, 'utf8'));
+      parsed = parseYaml(readFileSync(abs, 'utf8'));
     } catch (err) {
       addIssue(relPath, `invalid YAML: ${(err as Error).message}`);
       return undefined;
     }
+    if (parsed === null || parsed === undefined) {
+      addIssue(relPath, 'file is empty or contains only null');
+      return undefined;
+    }
+    return parsed;
   }
 
   // 1. config.yaml — fatal if missing/invalid (nothing else is reachable).
