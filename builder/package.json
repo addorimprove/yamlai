@@ -1,0 +1,19 @@
+{
+  "name": "mastra-yaml-builder",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "parse:example": "tsx scripts/parse-example.ts"
+  },
+  "dependencies": {
+    "yaml": "^2.6.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
