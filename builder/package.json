@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "build": "tsc",
-    "parse:example": "tsx scripts/parse-example.ts"
+    "parse:example": "tsx scripts/parse-example.ts",
+    "gen:example": "tsx scripts/generate-example.ts"
   },
   "dependencies": {
     "yaml": "^2.6.0",
