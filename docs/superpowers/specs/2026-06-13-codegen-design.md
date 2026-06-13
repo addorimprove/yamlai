@@ -128,6 +128,19 @@ Mirrors `sample-mastra`: `target ES2022`, `module ES2022`, `moduleResolution bun
 
 `node_modules`, `dist`, `.mastra`, `.env`, `*.db`, `*.db-*`.
 
+### `pnpm-workspace.yaml`
+
+```yaml
+allowBuilds:
+  esbuild: true
+```
+
+`mastra build` runs esbuild, whose install build-script pnpm blocks by default
+(`ERR_PNPM_IGNORED_BUILDS`), which fails the build. pnpm 11 reads this `allowBuilds` map from
+`pnpm-workspace.yaml` (the `package.json` `pnpm` field is ignored). Emitting the file also makes
+the generated project a self-contained pnpm workspace. *(Added during acceptance testing; not in
+the original mapping.)*
+
 ### `src/mastra/tools/<id>.ts`
 
 Copied verbatim from the input `tools/<id>.ts` (read using `rootDir` + the tool's `filePath`).
