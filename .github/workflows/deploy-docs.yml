@@ -1,0 +1,54 @@
+name: Build & deploy docs
+
+# Rebuilds the Docusaurus site in website/ and commits the static output
+# into /docs, which GitHub Pages serves (Settings → Pages → main / docs).
+on:
+  push:
+    branches: [main]
+    # Avoid an infinite loop: don't re-trigger on the bot's own /docs commit,
+    # and ignore changes that can't affect the built site.
+    paths-ignore:
+      - 'docs/**'
+      - '.planning/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy-docs
+  cancel-in-progress: true
+
+jobs:
+  build-and-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install dependencies
+        working-directory: website
+        run: npm ci
+
+      - name: Build site into /docs
+        working-directory: website
+        run: npm run build
+
+      - name: Commit built site
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs
+          if git diff --staged --quiet; then
+            echo "No documentation changes to commit."
+          else
+            git commit -m "docs: rebuild site [skip ci]"
+            git push
+          fi
