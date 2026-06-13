@@ -1,11 +1,19 @@
 {
   "name": "@addorimprove/yamlai",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
-  "bin": { "yamlai": "dist/scripts/generate.js" },
-  "files": ["dist"],
-  "engines": { "node": ">=22.13" },
-  "publishConfig": { "access": "public" },
+  "bin": {
+    "yamlai": "dist/scripts/generate.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.13"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "tsc",
