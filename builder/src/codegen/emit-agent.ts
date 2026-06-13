@@ -17,13 +17,13 @@ export function emitAgent(agent: ResolvedAgent): string {
   lines.push('');
 
   const fields: string[] = [];
-  fields.push(`  id: '${agent.id}',`);
+  fields.push(`  id: ${JSON.stringify(agent.id)},`);
   fields.push(`  name: ${JSON.stringify(agent.name)},`);
   if (agent.description) {
     fields.push(`  description: ${JSON.stringify(agent.description)},`);
   }
   fields.push(`  instructions: \`${backtickString(agent.instructions)}\`,`);
-  fields.push(`  model: '${agent.model.routerString}',`);
+  fields.push(`  model: ${JSON.stringify(agent.model.routerString)},`);
 
   const settings: string[] = [];
   if (agent.model.temperature !== undefined) {
