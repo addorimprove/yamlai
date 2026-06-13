@@ -4,6 +4,7 @@ The YAML shapes for the YAML Agent Builder (v1), annotated inline. For design ra
 codegen output, see [`SPEC.md`](SPEC.md).
 
 Annotation format: `# <type> · required|optional (default: …) → <reference>`.
+Enums list every allowed value: `enum · one of: a | b | c (default: b)`.
 Conventions: **`id` = filename** for every entity; a kebab-case id (`support-agent`) becomes the
 camelCase generated variable (`supportAgent`).
 
@@ -18,10 +19,10 @@ agents:                   # string[] · required (min 1)  → each id must match
   - research-agent
 
 logger:                   # object   · optional (default: { level: info })
-  level: info             # enum     · optional (default: info) → debug | info | warn | error
+  level: info             # enum     · optional · one of: debug | info | warn | error (default: info)
 
 storage:                  # object   · optional (default: omitted → no storage block)
-  type: libsql            # enum     · required if storage present → libsql  (only value in v1)
+  type: libsql            # enum     · required if storage present · one of: libsql (only value in v1)
   url: file:./mastra.db   # string   · required if storage present → file:… | :memory:
 ```
 
