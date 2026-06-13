@@ -11,9 +11,9 @@ YAML project → parseProject() → generateProject() → writeProject() → Mas
 ## Quick start
 
 ```bash
-# Run without installing (published as `yamlai`):
-npx yamlai <input> [output] [--force]
-npx yamlai ./examples ./out
+# Run without installing (published on npm):
+npx @addorimprove/yamlai <input> [output] [--force]
+npx @addorimprove/yamlai ./examples ./out
 ```
 
 Or from a clone of this repo:
@@ -122,7 +122,7 @@ export const echoTool = createTool({
 ## Library API
 
 ```ts
-import { parseProject, generateProject, writeProject } from 'yamlai';
+import { parseProject, generateProject, writeProject } from '@addorimprove/yamlai';
 
 const project = parseProject('./examples');           // ParsedProject (throws ParseError)
 const files   = generateProject(project, './examples'); // FileMap: { 'src/mastra/index.ts': '…' }
