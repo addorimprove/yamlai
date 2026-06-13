@@ -1,0 +1,8 @@
+name: my-mastra-app
+agents:
+  - support-agent
+logger:
+  level: info
+storage:
+  type: libsql
+  url: file:./mastra.db

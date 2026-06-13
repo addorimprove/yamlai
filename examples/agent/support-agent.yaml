@@ -1,0 +1,8 @@
+name: Support Agent
+description: Handles customer support questions.
+instructions: |
+  You are a helpful support assistant. Be concise and accurate.
+  Use the echo-tool when you need to repeat the user's input back to them.
+model: gpt-5-mini
+tools:
+  - echo-tool
