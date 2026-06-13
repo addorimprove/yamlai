@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc",
     "parse:example": "tsx scripts/parse-example.ts",
-    "gen:example": "tsx scripts/generate-example.ts"
+    "gen:example": "tsx scripts/generate-example.ts",
+    "gen": "tsx scripts/generate.ts"
   },
   "dependencies": {
     "yaml": "^2.6.0",
