@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { resolve } from 'node:path';
 import { generateProject, parseProject, writeProject } from '../src/index.js';
 
@@ -11,7 +12,7 @@ const force = argv.includes('--force');
 const [inputArg, outputArg] = argv.filter((a) => a !== '--force');
 
 if (!inputArg) {
-  console.error('Usage: pnpm gen <input-dir> [output-dir] [--force]');
+  console.error('Usage: yamlai <input-dir> [output-dir] [--force]');
   process.exit(1);
 }
 

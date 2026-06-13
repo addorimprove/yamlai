@@ -1,10 +1,13 @@
 {
-  "name": "mastra-yaml-builder",
+  "name": "yamlai",
   "version": "0.1.0",
   "type": "module",
-  "private": true,
+  "bin": "dist/scripts/generate.js",
+  "files": ["dist"],
+  "engines": { "node": ">=22.13" },
   "scripts": {
     "build": "tsc",
+    "prepublishOnly": "tsc",
     "parse:example": "tsx scripts/parse-example.ts",
     "gen:example": "tsx scripts/generate-example.ts",
     "gen": "tsx scripts/generate.ts"

@@ -1,7 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import type { FileMap } from './types.js';
-import { MARKER_FILE } from './types.js';
 
 export interface WriteOptions {
   /** Overwrite a non-empty directory even without our marker file. */
@@ -25,10 +24,9 @@ export function writeProject(
   }
 
   if (existsSync(absOut) && readdirSync(absOut).length > 0) {
-    const hasMarker = existsSync(join(absOut, MARKER_FILE));
-    if (!hasMarker && !opts.force) {
+    if (!opts.force) {
       throw new Error(
-        `Refusing to overwrite ${absOut}: not empty and no ${MARKER_FILE} marker. Pass force to override.`,
+        `Refusing to overwrite non-empty directory ${absOut}. Pass force to override.`,
       );
     }
     rmSync(absOut, { recursive: true, force: true });

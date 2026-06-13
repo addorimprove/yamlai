@@ -9,4 +9,4 @@ export type {
 } from './types.js';
 export { generateProject } from './codegen/generate.js';
 export { writeProject, type WriteOptions } from './codegen/write.js';
-export { type FileMap, MARKER_FILE } from './codegen/types.js';
+export { type FileMap } from './codegen/types.js';
