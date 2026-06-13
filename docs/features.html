@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YAML Agent Builder — Feature Reference</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #222638;
+      --border: #2e3250;
+      --text: #e2e5f1;
+      --muted: #7c82a0;
+      --accent: #6366f1;
+      --accent-dim: #4f46e5;
+      --green: #22c55e;
+      --yellow: #f59e0b;
+      --blue: #3b82f6;
+      --purple: #a855f7;
+      --red: #f87171;
+      --code-bg: #0d0f18;
+      --radius: 10px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    header {
+      padding: 32px 40px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    header h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.3px;
+    }
+
+    header p {
+      color: var(--muted);
+      margin-top: 4px;
+      font-size: 13px;
+    }
+
+    .filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 16px 40px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    .filter-bar span {
+      font-size: 12px;
+      color: var(--muted);
+      margin-right: 4px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .filter-btn {
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      padding: 5px 12px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+
+    .filter-btn:hover { border-color: var(--accent); color: var(--text); }
+    .filter-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+
+    .stats {
+      margin-left: auto;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    main {
+      padding: 24px 40px 48px;
+      max-width: 960px;
+    }
+
+    .feature-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    details {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      transition: border-color 0.15s;
+    }
+
+    details[open] { border-color: var(--accent); }
+    details.hidden { display: none; }
+
+    summary {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 18px;
+      cursor: pointer;
+      list-style: none;
+      user-select: none;
+    }
+
+    summary::-webkit-details-marker { display: none; }
+
+    .feature-num {
+      font-size: 11px;
+      color: var(--muted);
+      min-width: 22px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .feature-name {
+      font-weight: 600;
+      flex: 1;
+      font-size: 14px;
+    }
+
+    .chevron {
+      color: var(--muted);
+      font-size: 12px;
+      transition: transform 0.2s;
+      margin-left: auto;
+    }
+
+    details[open] .chevron { transform: rotate(180deg); }
+
+    .badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+
+    .badge-done    { background: #14532d; color: var(--green); }
+    .badge-pending { background: #451a03; color: var(--yellow); }
+    .badge-a       { background: #1e1b4b; color: #a5b4fc; }
+    .badge-b       { background: #2e1065; color: var(--purple); }
+    .badge-c       { background: #1c1917; color: #a8a29e; }
+    .badge-decl    { background: #0c2a4a; color: var(--blue); }
+    .badge-code    { background: #1a2e1a; color: #86efac; }
+    .badge-hand    { background: #2a1a1a; color: var(--red); }
+
+    .feature-body {
+      padding: 0 18px 18px;
+      border-top: 1px solid var(--border);
+      margin-top: 0;
+    }
+
+    .feature-body h3 {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--muted);
+      font-weight: 600;
+      margin: 16px 0 6px;
+    }
+
+    .use-case {
+      color: var(--text);
+      font-size: 13.5px;
+      line-height: 1.7;
+      opacity: 0.9;
+    }
+
+    .code-block {
+      margin-top: 8px;
+    }
+
+    .code-label {
+      font-size: 11px;
+      color: var(--muted);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-bottom: none;
+      border-radius: 6px 6px 0 0;
+      padding: 5px 12px;
+      display: inline-block;
+    }
+
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 0 6px 6px 6px;
+      padding: 14px 16px;
+      overflow-x: auto;
+      tab-size: 2;
+    }
+
+    code {
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 12.5px;
+      line-height: 1.7;
+      color: #c9d1d9;
+    }
+
+    .hl-key   { color: #79c0ff; }
+    .hl-val   { color: #a5d6ff; }
+    .hl-str   { color: #a8ff78; }
+    .hl-cmt   { color: #636e7b; font-style: italic; }
+    .hl-kw    { color: #ff7b72; }
+    .hl-fn    { color: #d2a8ff; }
+    .hl-num   { color: #f2cc60; }
+    .hl-type  { color: #ffa657; }
+    .hl-attr  { color: #79c0ff; }
+    .hl-punct { color: #8b949e; }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    @media (max-width: 640px) {
+      header, .filter-bar, main { padding-left: 16px; padding-right: 16px; }
+      .two-col { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>YAML Agent Builder — Feature Reference</h1>
+  <p>24 Mastra v1 features mapped to declarative YAML syntax</p>
+</header>
+
+<div class="filter-bar">
+  <span>Filter:</span>
+  <button class="filter-btn active" data-filter="all">All</button>
+  <button class="filter-btn" data-filter="done">✅ Done</button>
+  <button class="filter-btn" data-filter="pending">⏳ Pending</button>
+  <button class="filter-btn" data-filter="tier-a">Tier A</button>
+  <button class="filter-btn" data-filter="tier-b">Tier B</button>
+  <button class="filter-btn" data-filter="tier-c">Tier C</button>
+  <div class="stats" id="stats">24 features</div>
+</div>
+
+<main>
+  <div class="feature-list" id="feature-list">
+
+    <!-- 1 -->
+    <details data-status="done" data-tier="">
+      <summary>
+        <span class="feature-num">#1</span>
+        <span class="feature-name">Project Config</span>
+        <span class="badge badge-decl">declarative</span>
+        <span class="badge badge-done">✅ done</span>
+        <span class="chevron">▼</span>
+      </summary>
+      <div class="feature-body">
+        <h3>What it's for</h3>
+        <p class="use-case">The root configuration file that wires the entire project together. Declares which agents to register, global logger settings, and shared infrastructure. Every YAML Agent Builder project starts here.</p>
+        <h3>Syntax</h3>
+        <div class="code-block">
+          <div class="code-label">config.yaml</div>
+          <pre tabindex="0"><code><span class="hl-key">name</span><span class="hl-punct">:</span> <span class="hl-str">my-assistant</span>
+<span class="hl-key">agents</span><span class="hl-punct">:</span>
+  <span class="hl-punct">-</span> <span class="hl-str">support-agent</span>
+  <span class="hl-punct">-</span> <span class="hl-str">research-agent</span>
+<span class="hl-key">logger</span><span class="hl-punct">:</span>
+  <span class="hl-key">level</span><span class="hl-punct">:</span> <span class="hl-str">info</span></code></pre>
+        </div>
+      </div>
+    </details>
+
+    <!-- 2 -->
+    <details data-status="done" data-tier="">
+      <summary>
+        <span class="feature-num">#2</span>
+        <span class="feature-name">Agents</span>
+        <span class="badge badge-decl">declarative</span>
+        <span class="badge badge-done">✅ done</span>
+        <span class="chevron">▼</span>
+      </summary>
+      <div class="feature-body">
+        <h3>What it's for</h3>
+        <p class="use-case">Defines an AI agent with its identity, model, and toolset. Each agent lives in its own file under <code>agent/</code>. The codegen emits a <code>new Agent({...})</code> call populated from these fields.</p>
+        <h3>Syntax</h3>
+        <div class="code-block">
+          <div class="code-label">agent/support-agent.yaml</div>
+          <pre tabindex="0"><code><span class="hl-key">name</span><span class="hl-punct">:</span> <span class="hl-str">Support Agent</span>
+<span class="hl-key">description</span><span class="hl-punct">:</span> <span class="hl-str">Handles customer support queries</span>
+<span class="hl-key">model</span><span class="hl-punct">:</span> <span class="hl-str">gpt-4o</span>
+<span class="hl-key">tools</span><span class="hl-punct">:</span>
+  <span class="hl-punct">-</span> <span class="hl-str">echo-tool</span>
+  <span class="hl-punct">-</span> <span class="hl-str">search-tool</span></code></pre>
+        </div>
+      </div>
+    </details>
+
+    <!-- 3 -->
+    <details data-status="done" data-tier="">
+      <summary>
+        <span class="feature-num">#3</span>
+        <span class="feature-name">Models</span>
+        <span class="badge badge-decl">declarative</span>
+        <span class="badge badge-done">✅ done</span>
+        <span class="chevron">▼</span>
+      </summary>
+      <div class="feature-body">
+        <h3>What it's for</h3>
+        <p class="use-case">Defines a reusable LLM configuration (provider, model name, temperature, token limits) that can be referenced by multiple agents. Avoids repeating provider config across every agent YAML.</p>
+        <h3>Syntax</h3>
+        <div class="code-block">
+          <div class="code-label">model/gpt-4o.yaml</div>
+          <pre tabindex="0"><code><span class="hl-key">provider</span><span class="hl-punct">:</span> <span class="hl-str">openai</span>
+<span class="hl-key">model</span><span class="hl-punct">:</span> <span class="hl-str">gpt-4o</span>
+<span class="hl-key">temperature</span><span class="hl-punct">:</span> <span class="hl-num">0.7</span>
+<span class="hl-key">max_tokens</span><span class="hl-punct">:</span> <span class="hl-num">2048</span></code></pre>
+        </div>
+        <h3>Agent reference</h3>
+        <div class="code-block">
+          <div class="code-label">agent/support-agent.yaml</div>
+          <pre tabindex="0"><code><span class="hl-key">model</span><span class="hl-punct">:</span> <span class="hl-str">gpt-4o</span>  <span class="hl-cmt"># references model/gpt-4o.yaml</span></code></pre>
+        </div>
+      </div>
+    </details>
+
+    <!-- 4 -->
+    <details data-status="done" data-tier="">
+      <summary>
+        <span class="feature-num">#4</span>
+        <span class="feature-name">Tools</span>
+        <span class="badge badge-code">author-as-code</span>
+        <span class="badge badge-done">✅ done</span>
+        <span class="chevron">▼</span>
+      </summary>
+      <div class="feature-body">
+        <h3>What it's for</h3>
+        <p class="use-case">Extends agent capabilities with callable functions. You write the tool logic in TypeScript using Mastra's <code>createTool</code>, then reference it by id in any agent YAML. The codegen imports and wires it automatically.</p>
+        <h3>Syntax</h3>
+        <div class="two-col">
+          <div class="code-block">
+            <div class="code-label">tools/echo-tool.ts</div>
+            <pre tabindex="0"><code><span class="hl-kw">import</span> <span class="hl-punct">{</span> <span class="hl-fn">createTool</span> <span class="hl-punct">}</span> <span class="hl-kw">from</span> <span class="hl-str">"@mastra/core/tools"</span><span class="hl-punct">;</span>
+<span class="hl-kw">import</span> <span class="hl-punct">{</span> z <span class="hl-punct">}</span> <span class="hl-kw">from</span> <span class="hl-str">"zod"</span><span class="hl-punct">;</span>
+
+<span class="hl-kw">export const</span> <span class="hl-fn">echoTool</span> <span class="hl-punct">=</span> <span class="hl-fn">createTool</span><span class="hl-punct">({</span>
+  <span class="hl-attr">id</span><span class="hl-punct">:</span> <span class="hl-str">"echo-tool"</span><span class="hl-punct">,</span>
+  <span class="hl-attr">description</span><span class="hl-punct">:</span> <span class="hl-str">"Echoes back the input"</span><span class="hl-punct">,</span>
+  <span class="hl-attr">inputSchema</span><span class="hl-punct">:</span> z<span class="hl-punct">.</span><span class="hl-fn">object</span><span class="hl-punct">({</span>
+    <span class="hl-attr">message</span><span class="hl-punct">:</span> z<span class="hl-punct">.</span><span class="hl-fn">string</span><span class="hl-punct">(),</span>
+  <span class="hl-punct">}),</span>
+  <span class="hl-attr">execute</span><span class="hl-punct">:</span> <span class="hl-kw">async</span> <span class="hl-punct">({</span> context <span class="hl-punct">})</span> <span class="hl-punct">=></span>
+    <span class="hl-punct">({</span> <span class="hl-attr">output</span><span class="hl-punct">:</span> context<span class="hl-punct">.</span>message <span class="hl-punct">}),</span>
+<span class="hl-punct">});</span></code></pre>
+          </div>
+          <div class="code-block">
+            <div class="code-label">agent/support-agent.yaml</div>
+            <pre tabindex="0"><code><span class="hl-key">tools</span><span class="hl-punct">:</span>
+  <span class="hl-punct">-</span> <span class="hl-str">echo-tool</span>  <span class="hl-cmt"># → tools/echo-tool.ts</span></code></pre>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <!-- 5 -->
+    <details data-status="done" data-tier="">
+      <summary>
+        <span class="feature-num">#5</span>
+        <span class="feature-name">Prompts</span>
+        <span class="badge badge-code">author-as-code</span>
+        <span class="badge badge-done">✅ done</span>
+        <span class="chevron">▼</span>
+      </summary>
+      <div class="feature-body">
+        <h3>What it's for</h3>
+        <p class="use-case">Stores agent system prompts as standalone Markdown files so they can be version-controlled, edited by non-developers, and reused across agents. Referenced via the agent's <code>instructions</code> field.</p>
+        <h3>Syntax</h3>
+        <div class="two-col">
+          <div class="code-block">
+            <div class="code-label">prompt/support-prompt.md</div>
+            <pre tabindex="0"><code>You are a helpful customer support agent.
+Always be polite and concise.
+Escalate complex issues to a human agent.
+Never share customer PII in responses.</code></pre>
+          </div>
+          <div class="code-block">
+            <div class="code-label">agent/support-agent.yaml</div>
+            <pre tabindex="0"><code><span class="hl-key">instructions</span><span class="hl-punct">:</span> <span class="hl-str">support-prompt</span>
+<span class="hl-cmt"># reads from prompt/support-prompt.md</span></code></pre>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <!-- 6 -->
+    <details data-status="done" data-tier="">
+      <summary>
+        <span class="feature-num">#6</span>
+        <span class="feature-name">Logger</span>
+        <span class="badge badge-decl">declarative</span>
+        <span class="badge badge-done">✅ done</span>
+        <span class="chevron">▼</span>
+      </summary>
+      <div class="feature-body">
+        <h3>What it's for</h3>
+        <p class="use-case">Configures the Mastra logger verbosity for the entire project. Controls how much output appears during agent runs — useful for debugging tool calls, model responses, and step traces.</p>
+        <h3>Syntax</h3>
+        <div class="code-block">
+          <div class="code-label">config.yaml</div>
+          <pre tabindex="0"><code><span class="hl-key">logger</span><span class="hl-punct">:</span>
+  <span class="hl-key">level</span><span class="hl-punct">:</span> <span class="hl-str">info</span>  <span class="hl-cmt"># debug | info | warn | error</span></code></pre>
+        </div>
+      </div>
+    </details>
+
+    <!-- 7 -->
+    <details data-status="done" data-tier="">
+      <summary>
+        <span class="feature-num">#7</span>
+        <span class="feature-name">Storage</span>
+        <span class="badge badge-decl">declarative</span>
+        <span class="badge badge-done">✅ done</span>
+        <span class="chevron">▼</span>
+      </summary>
+      <div class="feature-body">
+        <h3>What it's for</h3>
+        <p class="use-case">Configures the persistent storage backend used for conversation history, agent state, and memory. Mastra supports libSQL (local or Turso), PostgreSQL, and others. A required foundation for memory features.</p>
+        <h3>Syntax</h3>
+        <div class="code-block">
+          <div class="code-label">config.yaml</div>
+          <pre tabindex="0"><code><span class="hl-key">storage</span><span class="hl-punct">:</span>
+  <span class="hl-key">type</span><span class="hl-punct">:</span> <span class="hl-str">libsql</span>
+  <span class="hl-key">url</span><span class="hl-punct">:</span> <span class="hl-str">file:./mastra.db</span>
+
+<span class="hl-cmt"># or for Turso cloud:</span>
+<span class="hl-key">storage</span><span class="hl-punct">:</span>
+  <span class="hl-key">type</span><span class="hl-punct">:</span> <span class="hl-str">libsql</span>
+  <span class="hl-key">url</span><span class="hl-punct">:</span> <span class="hl-str">libsql://my-db.turso.io</span>
+  <span class="hl-key">auth_token</span><span class="hl-punct">:</span> <span class="hl-str">${TURSO_TOKEN}</span></code></pre>
+        </div>
+      </div>
+    </details>
+
+    <!-- 8 -->
+    <details data-status="pending" data-tier="a">
+      <summary>
+        <span class="feature-num">#8</span>
+        <span class="feature-name">Memory</span>
+        <span class="badge badge-decl">declarative</span>
+        <span class="badge badge-a">Tier A</span>
+        <span class="badge badge-pending">⏳ pending</span>
+        <span class="chevron">▼</span>
+      </summary>
+      <div class="feature-body">
+        <h3>What it's for</h3>
+        <p class="use-case">Gives agents persistent, searchable memory across conversations. Supports sliding-window message history, semantic similarity recall (vector search), and a working-memory scratchpad for mid-conversation state. Maps directly to Mastra's <code>Memory</code> class.</p>
+        <h3>Syntax</h3>
+        <div class="two-col">
+          <div class="code-block">
+            <div class="code-label">memory/chat-memory.yaml</div>
+            <pre tabindex="0"><code><span class="hl-key">vector</span><span class="hl-punct">:</span> <span class="hl-str">pg-vector</span>
+<span class="hl-key">embedder</span><span class="hl-punct">:</span> <span class="hl-str">text-embedding-3-small</span>
+<span class="hl-key">last_messages</span><span class="hl-punct">:</span> <span class="hl-num">10</span>
+<span class="hl-key">semantic_recall</span><span class="hl-punct">:</span> <span class="hl-kw">true</span>
+<span class="hl-key">working_memory</span><span class="hl-punct">:</span> <span class="hl-kw">true</span></code></pre>
+          </div>
+          <div class="code-block">
+            <div class="code-label">agent/support-agent.yaml</div>
+            <pre tabindex="0"><code><span class="hl-key">memory</span><span class="hl-punct">:</span> <span class="hl-str">chat-memory</span>
+<span class="hl-cmt"># reads from memory/chat-memory.yaml</span></code></pre>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <!-- 9 -->
+    <details data-status="pending" data-tier="a">
+      <summary>
+        <span class="feature-num">#9</span>
+        <span class="feature-name">Sub-agents</span>
+        <span class="badge badge-decl">declarative</span>
+        <span class="badge badge-a">Tier A</span>
+        <span class="badge badge-pending">⏳ pending</span>
+        <span class="chevron">▼</span>
+      </summary>
+      <div class="feature-body">
+        <h3>What it's for</h3>
+        <p class="use-case">Lets an agent delegate tasks to other agents at runtime, enabling supervisor/multi-agent patterns. The parent agent can call child agents as if they were tools. Reuses the same resolver logic as the <code>tools</code> field.</p>
+        <h3>Syntax</h3>
+        <div class="code-block">
+          <div class="code-label">agent/supervisor-agent.yaml</div>
+          <pre tabindex="0"><code><span class="hl-key">name</span><span class="hl-punct">:</span> <span class="hl-str">Supervisor Agent</span>
+<span class="hl-key">model</span><span class="hl-punct">:</span> <span class="hl-str">gpt-4o</span>
+<span class="hl-key">agents</span><span class="hl-punct">:</span>
+  <span class="hl-punct">-</span> <span class="hl-str">research-agent</span>
+  <span class="hl-punct">-</span> <span class="hl-str">writer-agent</span>
+<span class="hl-cmt"># emits: agents: { researchAgent, writerAgent }</span></code></pre>
+        </div>
+      </div>
+    </details>
+
+    <!-- 10 -->
+    <details data-status="pending" data-tier="a">
+      <summary>
+        <span class="feature-num">#10</span>
+        <span class="feature-name">Guardrails / Processors</span>
+        <span class="badge badge-decl">declarative</span>
+        <span class="badge badge-a">Tier A</span>
+        <span class="badge badge-pending">⏳ pending</span>
+        <span class="chevron">▼</span>
+      </summary>
+      <div class="feature-body">
+        <h3>What it's for</h3>
+        <p class="use-case">Attaches pre/post processing functions that intercept every prompt and response. Input processors run before the model (PII scrubbing, moderation, injection guards). Output processors run after (toxicity filters, response formatting). Essential for production deployments.</p>
+        <h3>Syntax</h3>
+        <div class="code-block">
+          <div class="code-label">agent/support-agent.yaml</div>
+          <pre tabindex="0"><code><span class="hl-key">input_processors</span><span class="hl-punct">:</span>
+  <span class="hl-punct">-</span> <span class="hl-str">pii-detector</span>
+  <span class="hl-punct">-</span> <span class="hl-str">moderation</span>
+<span class="hl-key">output_processors</span><span class="hl-punct">:</span>
+  <span class="hl-punct">-</span> <span class="hl-str">toxicity-filter</span></code></pre>
+        </div>
+        <h3>Processor file</h3>
+        <div class="code-block">
+          <div class="code-label">processor/pii-detector.ts</div>
+          <pre tabindex="0"><code><span class="hl-kw">export default async function</span> <span class="hl-fn">piiDetector</span><span class="hl-punct">(</span><span class="hl-attr">text</span><span class="hl-punct">:</span> <span class="hl-type">string</span><span class="hl-punct">) {</span>
+  <span class="hl-kw">return</span> text<span class="hl-punct">.</span><span class="hl-fn">replace</span><span class="hl-punct">(/</span>\b\d<span class="hl-punct">{</span><span class="hl-num">3</span><span class="hl-punct">}-</span>\d<span class="hl-punct">{</span><span class="hl-num">2</span><span class="hl-punct">}-</span>\d<span class="hl-punct">{</span><span class="hl-num">4</span><span class="hl-punct">}\</span>b<span class="hl-punct">/</span>g<span class="hl-punct">,</span> <span class="hl-str">"[SSN]"</span><span class="hl-punct">);</span>
+<span class="hl-punct">}</span></code></pre>
+        </div>
+      </div>
+    </details>
+
+    <!-- 11 -->
+    <details data-status="pending" data-tier="a">
+      <summary>
+        <span class="feature-num">#11</span>
+        <span class="feature-name">Scorers / Evals</span>
+        <span class="badge badge-decl">declarative</span>
+        <span class="badge badge-a">Tier A</span>
+        <span class="badge badge-pending">⏳ pending</span>
+        <span class="chevron">▼</span>
+      </summary>
+      <div class="feature-body">
+        <h3>What it's for</h3>
+        <p class="use-case">Attaches evaluation scorers that automatically grade agent responses on metrics like relevancy, toxicity, and faithfulness. Results feed into Mastra's eval dashboard, enabling quality monitoring and regression detection over time.</p>
+        <h3>Syntax</h3>
+        <div class="code-block">
+          <div class="code-label">agent/support-agent.yaml</div>
+          <pre tabindex="0"><code><span class="hl-key">scorers</span><span class="hl-punct">:</span>
+  <span class="hl-punct">-</span> <span class="hl-str">answer-relevancy</span>
+  <span class="hl-punct">-</span> <span class="hl-str">toxicity</span>
+  <span class="hl-punct">-</span> <span class="hl-str">faithfulness</span></code></pre>
+        </div>
+      </div>
+    </details>
+
+    <!-- 12 -->
+    <details data-status="pending" data-tier="a">
+      <summary>
+        <span class="feature-num">#12</span>
+        <span class="feature-name">Run Limits</span>
+        <span class="badge badge-decl">declarative</span>
+        <span class="badge badge-a">Tier A</span>
+        <span class="badge badge-pending">⏳ pending</span>
+        <span class="chevron">▼</span>
+      </summary>
+      <div class="feature-body">
+        <h3>What it's for</h3>
+        <p class="use-case">Prevents runaway agent loops by capping the number of tool-call steps and defining exit conditions. Maps to Mastra's <code>defaultOptions.maxSteps</code> and stop condition callbacks. Critical for cost control and predictable latency.</p>
+        <h3>Syntax</h3>
+        <div class="code-block">
+          <div class="code-label">agent/support-agent.yaml</div>
+          <pre tabindex="0"><code><span class="hl-key">max_steps</span><span class="hl-punct">:</span> <span class="hl-num">10</span>
+<span class="hl-key">stop_when</span><span class="hl-punct">:</span> <span class="hl-str">task_complete</span>
+<span class="hl-cmt"># emits: defaultOptions: { maxSteps: 10 }</span></code></pre>
+        </div>
+      </div>
+    </details>
+
+    <!-- 13 -->
+    <details data-status="pending" data-tier="a">
+      <summary>
+        <span class="feature-num">#13</span>
+        <span class="feature-name">Metadata</span>
+        <span class="badge badge-decl">declarative</span>
+        <span class="badge badge-a">Tier A</span>
+        <span class="badge badge-pending">⏳ pending</span>
+        <span class="chevron">▼</span>
+      </summary>
+      <div class="feature-body">
+        <h3>What it's for</h3>
+        <p class="use-case">Attaches arbitrary key-value metadata to an agent for organizational and routing purposes. Useful for tagging agents by team, environment, or version — enables filtering in dashboards and multi-tenant setups.</p>
+        <h3>Syntax</h3>
+        <div class="code-block">
+          <div class="code-label">agent/support-agent.yaml</div>
+          <pre tabindex="0"><code><span class="hl-key">metadata</span><span class="hl-punct">:</span>
+  <span class="hl-key">team</span><span class="hl-punct">:</span> <span class="hl-str">support</span>
+  <span class="hl-key">version</span><span class="hl-punct">:</span> <span class="hl-str">"1.0"</span>
+  <span class="hl-key">environment</span><span class="hl-punct">:</span> <span class="hl-str">production</span></code></pre>
+        </div>
+      </div>
+    </details>
+
+    <!-- 14 -->
+    <details data-status="pending" data-tier="a">
+      <summary>
+        <span class="feature-num">#14</span>
+        <span class="feature-name">Observability / Tracing</span>
+        <span class="badge badge-decl">declarative</span>
+        <span class="badge badge-a">Tier A</span>
+        <span class="badge badge-pending">⏳ pending</span>
+        <span class="chevron">▼</span>
+      </summary>
+      <div class="feature-body">
+        <h3>What it's for</h3>
+        <p class="use-case">Wires OpenTelemetry tracing into Mastra so every agent run, tool call, and LLM request emits spans to your observability backend (Honeycomb, Datadog, Langfuse, etc.). Essential for debugging latency and understanding model behavior in production.</p>
+        <h3>Syntax</h3>
+        <div class="code-block">
+          <div class="code-label">config.yaml</div>
+          <pre tabindex="0"><code><span class="hl-key">observability</span><span class="hl-punct">:</span>
+  <span class="hl-key">provider</span><span class="hl-punct">:</span> <span class="hl-str">opentelemetry</span>
+  <span class="hl-key">endpoint</span><span class="hl-punct">:</span> <span class="hl-str">https://otel.example.com</span>
+  <span class="hl-key">service_name</span><span class="hl-punct">:</span> <span class="hl-str">my-assistant</span></code></pre>
+        </div>
+      </div>
+    </details>
+
+    <!-- 15 -->
+    <details data-status="pending" data-tier="b">
+      <summary>
+        <span class="feature-num">#15</span>
+        <span class="feature-name">Workflows</span>
+        <span class="badge badge-code">author-as-code</span>
+        <span class="badge badge-b">Tier B</span>
+        <span class="badge badge-pending">⏳ pending</span>
+        <span class="chevron">▼</span>
+      </summary>
+      <div class="feature-body">
+        <h3>What it's for</h3>
+        <p class="use-case">Defines multi-step, branching pipelines of tool calls and agent invocations. Workflows give you deterministic control flow (sequences, branches, loops) on top of agents — ideal for complex tasks like research-then-write or ingest-then-summarize.</p>
+        <h3>Syntax</h3>
+        <div class="two-col">
+          <div class="code-block">
+            <div class="code-label">workflow/research-workflow.ts</div>
+            <pre tabindex="0"><code><span class="hl-kw">import</span> <span class="hl-punct">{</span> <span class="hl-fn">createWorkflow</span><span class="hl-punct">,</span> <span class="hl-fn">createStep</span> <span class="hl-punct">}</span>
+  <span class="hl-kw">from</span> <span class="hl-str">"@mastra/core/workflows"</span><span class="hl-punct">;</span>
+
+<span class="hl-kw">export const</span> <span class="hl-fn">researchWorkflow</span> <span class="hl-punct">=</span>
+  <span class="hl-fn">createWorkflow</span><span class="hl-punct">({</span> <span class="hl-attr">id</span><span class="hl-punct">:</span> <span class="hl-str">"research-workflow"</span> <span class="hl-punct">})</span>
+    <span class="hl-punct">.</span><span class="hl-fn">then</span><span class="hl-punct">(</span>searchStep<span class="hl-punct">)</span>
+    <span class="hl-punct">.</span><span class="hl-fn">then</span><span class="hl-punct">(</span>summarizeStep<span class="hl-punct">)</span>
+    <span class="hl-punct">.</span><span class="hl-fn">commit</span><span class="hl-punct">();</span></code></pre>
+          </div>
+          <div class="code-block">
+            <div class="code-label">agent/research-agent.yaml</div>
+            <pre tabindex="0"><code><span class="hl-key">workflows</span><span class="hl-punct">:</span>
+  <span class="hl-punct">-</span> <span class="hl-str">research-workflow</span></code></pre>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <!-- 16 -->
+    <details data-status="pending" data-tier="b">
+      <summary>
+        <span class="feature-num">#16</span>
+        <span class="feature-name">Structured Output</span>
+        <span class="badge badge-code">author-as-code</span>
+        <span class="badge badge-b">Tier B</span>
+        <span class="badge badge-pending">⏳ pending</span>
+        <span class="chevron">▼</span>
+      </summary>
+      <div class="feature-body">
+        <h3>What it's for</h3>
+        <p class="use-case">Forces the agent to respond with a validated JSON object matching a Zod schema instead of free text. Essential when the agent output is consumed programmatically — form fills, API payloads, database inserts.</p>
+        <h3>Syntax</h3>
+        <div class="two-col">
+          <div class="code-block">
+            <div class="code-label">schema/support-response.ts</div>
+            <pre tabindex="0"><code><span class="hl-kw">import</span> <span class="hl-punct">{</span> z <span class="hl-punct">}</span> <span class="hl-kw">from</span> <span class="hl-str">"zod"</span><span class="hl-punct">;</span>
+
+<span class="hl-kw">export const</span> <span class="hl-fn">supportResponseSchema</span> <span class="hl-punct">=</span>
+  z<span class="hl-punct">.</span><span class="hl-fn">object</span><span class="hl-punct">({</span>
+    <span class="hl-attr">resolved</span><span class="hl-punct">:</span> z<span class="hl-punct">.</span><span class="hl-fn">boolean</span><span class="hl-punct">(),</span>
+    <span class="hl-attr">summary</span><span class="hl-punct">:</span> z<span class="hl-punct">.</span><span class="hl-fn">string</span><span class="hl-punct">(),</span>
+    <span class="hl-attr">ticket_id</span><span class="hl-punct">:</span> z<span class="hl-punct">.</span><span class="hl-fn">string</span><span class="hl-punct">().</span><span class="hl-fn">optional</span><span class="hl-punct">(),</span>
+  <span class="hl-punct">});</span></code></pre>
+          </div>
+          <div class="code-block">
+            <div class="code-label">agent/support-agent.yaml</div>
+            <pre tabindex="0"><code><span class="hl-key">output</span><span class="hl-punct">:</span> <span class="hl-str">support-response</span>
+<span class="hl-cmt"># reads from schema/support-response.ts</span></code></pre>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <!-- 17 -->
+    <details data-status="pending" data-tier="b">
+      <summary>
+        <span class="feature-num">#17</span>
+        <span class="feature-name">MCP Tool Servers</span>
+        <span class="badge badge-decl">declarative</span>
+        <span class="badge badge-b">Tier B</span>
+        <span class="badge badge-pending">⏳ pending</span>
+        <span class="chevron">▼</span>
+      </summary>
+      <div class="feature-body">
+        <h3>What it's for</h3>
+        <p class="use-case">Connects external Model Context Protocol (MCP) servers to the agent, giving it access to tools served over stdio or HTTP. This lets you plug in any MCP-compatible tool provider (filesystem, browser, databases, APIs) without writing TypeScript.</p>
+        <h3>Syntax</h3>
+        <div class="two-col">
+          <div class="code-block">
+            <div class="code-label">mcp/filesystem.yaml (stdio)</div>
+            <pre tabindex="0"><code><span class="hl-key">command</span><span class="hl-punct">:</span> <span class="hl-str">npx</span>
+<span class="hl-key">args</span><span class="hl-punct">:</span>
+  <span class="hl-punct">-</span> <span class="hl-str">"-y"</span>
+  <span class="hl-punct">-</span> <span class="hl-str">"@modelcontextprotocol/server-filesystem"</span>
+  <span class="hl-punct">-</span> <span class="hl-str">"/workspace"</span></code></pre>
+          </div>
+          <div class="code-block">
+            <div class="code-label">mcp/remote-tools.yaml (HTTP)</div>
+            <pre tabindex="0"><code><span class="hl-key">url</span><span class="hl-punct">:</span> <span class="hl-str">https://tools.example.com/mcp</span>
+<span class="hl-cmt"># emits: new MCPClient({ url: "..." })</span></code></pre>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <!-- 18 -->
+    <details data-status="pending" data-tier="b">
+      <summary>
+        <span class="feature-num">#18</span>
+        <span class="feature-name">Custom Processors / Scorers</span>
+        <span class="badge badge-code">author-as-code</span>
+        <span class="badge badge-b">Tier B</span>
+        <span class="badge badge-pending">⏳ pending</span>
+        <span class="chevron">▼</span>
+      </summary>
+      <div class="feature-body">
+        <h3>What it's for</h3>
+        <p class="use-case">Write domain-specific processors and eval scorers in TypeScript that get imported verbatim by the codegen. Lets you go beyond Mastra's built-in catalog — custom business rule validators, proprietary toxicity models, or brand voice checkers.</p>
+        <h3>Syntax</h3>
+        <div class="two-col">
+          <div class="code-block">
+            <div class="code-label">processor/brand-voice.ts</div>
+            <pre tabindex="0"><code><span class="hl-kw">export default async function</span> <span class="hl-fn">brandVoice</span><span class="hl-punct">(</span>
+  <span class="hl-attr">text</span><span class="hl-punct">:</span> <span class="hl-type">string</span>
+<span class="hl-punct">) {</span>
+  <span class="hl-cmt">// enforce brand vocabulary</span>
+  <span class="hl-kw">return</span> text<span class="hl-punct">.</span><span class="hl-fn">replace</span><span class="hl-punct">(/</span>utilize<span class="hl-punct">/</span>gi<span class="hl-punct">,</span> <span class="hl-str">"use"</span><span class="hl-punct">);</span>
+<span class="hl-punct">}</span></code></pre>
+          </div>
+          <div class="code-block">
+            <div class="code-label">scorer/relevancy.ts</div>
+            <pre tabindex="0"><code><span class="hl-kw">import</span> <span class="hl-punct">{</span> <span class="hl-fn">createScorer</span> <span class="hl-punct">}</span>
+  <span class="hl-kw">from</span> <span class="hl-str">"@mastra/evals"</span><span class="hl-punct">;</span>
+
+<span class="hl-kw">export const</span> <span class="hl-fn">relevancyScorer</span> <span class="hl-punct">=</span>
+  <span class="hl-fn">createScorer</span><span class="hl-punct">({</span>
+    <span class="hl-attr">name</span><span class="hl-punct">:</span> <span class="hl-str">"relevancy"</span><span class="hl-punct">,</span>
+    <span class="hl-attr">score</span><span class="hl-punct">:</span> <span class="hl-kw">async</span> <span class="hl-punct">({</span> input<span class="hl-punct">,</span> output <span class="hl-punct">}) =></span>
+      <span class="hl-fn">computeRelevancy</span><span class="hl-punct">(</span>input<span class="hl-punct">,</span> output<span class="hl-punct">),</span>
+  <span class="hl-punct">});</span></code></pre>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <!-- 19 -->
+    <details data-status="pending" data-tier="b">
+      <summary>
+        <span class="feature-num">#19</span>
+        <span class="feature-name">Voice</span>
+        <span class="badge badge-decl">declarative</span>
+        <span class="badge badge-b">Tier B</span>
+        <span class="badge badge-pending">⏳ pending</span>
+        <span class="chevron">▼</span>
+      </summary>
+      <div class="feature-body">
+        <h3>What it's for</h3>
+        <p class="use-case">Attaches text-to-speech and speech-to-text capabilities to an agent using providers like ElevenLabs, OpenAI, or Deepgram. The codegen emits a <code>new CompositeVoice(...)</code> instantiation from the YAML config. Enables voice agents and telephony integrations.</p>
+        <h3>Syntax</h3>
+        <div class="two-col">
+          <div class="code-block">
+            <div class="code-label">voice/default-voice.yaml</div>
+            <pre tabindex="0"><code><span class="hl-key">provider</span><span class="hl-punct">:</span> <span class="hl-str">elevenlabs</span>
+<span class="hl-key">voice_id</span><span class="hl-punct">:</span> <span class="hl-str">rachel</span>
+<span class="hl-key">stability</span><span class="hl-punct">:</span> <span class="hl-num">0.5</span>
+<span class="hl-key">similarity_boost</span><span class="hl-punct">:</span> <span class="hl-num">0.75</span></code></pre>
+          </div>
+          <div class="code-block">
+            <div class="code-label">agent/voice-agent.yaml</div>
+            <pre tabindex="0"><code><span class="hl-key">voice</span><span class="hl-punct">:</span> <span class="hl-str">default-voice</span>
+<span class="hl-cmt"># emits: voice: new CompositeVoice(...)</span></code></pre>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <!-- 20 -->
+    <details data-status="pending" data-tier="c">
+      <summary>
+        <span class="feature-num">#20</span>
+        <span class="feature-name">RAG</span>
+        <span class="badge badge-code">author-as-code</span>
+        <span class="badge badge-c">Tier C</span>
+        <span class="badge badge-pending">⏳ pending</span>
+        <span class="chevron">▼</span>
+      </summary>
+      <div class="feature-body">
+        <h3>What it's for</h3>
+        <p class="use-case">Retrieval-Augmented Generation — lets agents query a vector store to fetch relevant document chunks before generating a response. Involves two parts: an ingestion pipeline (chunking + embedding documents) and a vector-query tool the agent calls at runtime.</p>
+        <h3>Syntax</h3>
+        <div class="code-block">
+          <div class="code-label">tools/vector-query.ts</div>
+          <pre tabindex="0"><code><span class="hl-kw">import</span> <span class="hl-punct">{</span> <span class="hl-fn">createVectorQueryTool</span> <span class="hl-punct">}</span>
+  <span class="hl-kw">from</span> <span class="hl-str">"@mastra/rag"</span><span class="hl-punct">;</span>
+
+<span class="hl-kw">export const</span> <span class="hl-fn">vectorQueryTool</span> <span class="hl-punct">=</span>
+  <span class="hl-fn">createVectorQueryTool</span><span class="hl-punct">({</span>
+    <span class="hl-attr">vectorStoreName</span><span class="hl-punct">:</span> <span class="hl-str">"pg-vector"</span><span class="hl-punct">,</span>
+    <span class="hl-attr">indexName</span><span class="hl-punct">:</span> <span class="hl-str">"documents"</span><span class="hl-punct">,</span>
+    <span class="hl-attr">model</span><span class="hl-punct">:</span> <span class="hl-str">"text-embedding-3-small"</span><span class="hl-punct">,</span>
+  <span class="hl-punct">});</span></code></pre>
+        </div>
+      </div>
+    </details>
+
+    <!-- 21 -->
+    <details data-status="pending" data-tier="c">
+      <summary>
+        <span class="feature-num">#21</span>
+        <span class="feature-name">Vector Stores</span>
+        <span class="badge badge-decl">declarative</span>
+        <span class="badge badge-c">Tier C</span>
+        <span class="badge badge-pending">⏳ pending</span>
+        <span class="chevron">▼</span>
+      </summary>
+      <div class="feature-body">
+        <h3>What it's for</h3>
+        <p class="use-case">Registers named vector database connections that can be referenced by RAG tools and memory configs. Mastra supports PostgreSQL (pgvector), Pinecone, Qdrant, and others. Centralizing these in <code>config.yaml</code> avoids scattered connection strings.</p>
+        <h3>Syntax</h3>
+        <div class="code-block">
+          <div class="code-label">config.yaml</div>
+          <pre tabindex="0"><code><span class="hl-key">vectors</span><span class="hl-punct">:</span>
+  <span class="hl-key">pg-vector</span><span class="hl-punct">:</span>
+    <span class="hl-key">type</span><span class="hl-punct">:</span> <span class="hl-str">pg</span>
+    <span class="hl-key">connection_string</span><span class="hl-punct">:</span> <span class="hl-str">postgresql://localhost/mydb</span>
+  <span class="hl-key">pinecone</span><span class="hl-punct">:</span>
+    <span class="hl-key">type</span><span class="hl-punct">:</span> <span class="hl-str">pinecone</span>
+    <span class="hl-key">api_key</span><span class="hl-punct">:</span> <span class="hl-str">${PINECONE_API_KEY}</span>
+    <span class="hl-key">index</span><span class="hl-punct">:</span> <span class="hl-str">my-index</span></code></pre>
+        </div>
+      </div>
+    </details>
+
+    <!-- 22 -->
+    <details data-status="pending" data-tier="c">
+      <summary>
+        <span class="feature-num">#22</span>
+        <span class="feature-name">Server / Auth Adapters</span>
+        <span class="badge badge-hand">hand-wired</span>
+        <span class="badge badge-c">Tier C</span>
+        <span class="badge badge-pending">⏳ pending</span>
+        <span class="chevron">▼</span>
+      </summary>
+      <div class="feature-body">
+        <h3>What it's for</h3>
+        <p class="use-case">Exposes Mastra agents over HTTP using Express, Hono, or NestJS server adapters — adding REST endpoints, auth middleware, and CORS. Required when you need to serve agents as an API rather than running them as CLI scripts or serverless functions.</p>
+        <h3>Syntax</h3>
+        <div class="code-block">
+          <div class="code-label">server.ts</div>
+          <pre tabindex="0"><code><span class="hl-kw">import</span> <span class="hl-punct">{</span> <span class="hl-type">Mastra</span> <span class="hl-punct">}</span> <span class="hl-kw">from</span> <span class="hl-str">"@mastra/core"</span><span class="hl-punct">;</span>
+<span class="hl-kw">import</span> <span class="hl-punct">{</span> <span class="hl-fn">createHonoServer</span> <span class="hl-punct">}</span> <span class="hl-kw">from</span> <span class="hl-str">"@mastra/server/hono"</span><span class="hl-punct">;</span>
+
+<span class="hl-kw">const</span> mastra <span class="hl-punct">=</span> <span class="hl-kw">new</span> <span class="hl-type">Mastra</span><span class="hl-punct">({</span> <span class="hl-cmt">/* generated config */</span> <span class="hl-punct">});</span>
+<span class="hl-kw">const</span> app <span class="hl-punct">=</span> <span class="hl-fn">createHonoServer</span><span class="hl-punct">(</span>mastra<span class="hl-punct">);</span>
+app<span class="hl-punct">.</span><span class="hl-fn">listen</span><span class="hl-punct">(</span><span class="hl-num">3000</span><span class="hl-punct">);</span></code></pre>
+        </div>
+      </div>
+    </details>
+
+    <!-- 23 -->
+    <details data-status="pending" data-tier="c">
+      <summary>
+        <span class="feature-num">#23</span>
+        <span class="feature-name">Deployment</span>
+        <span class="badge badge-hand">hand-wired</span>
+        <span class="badge badge-c">Tier C</span>
+        <span class="badge badge-pending">⏳ pending</span>
+        <span class="chevron">▼</span>
+      </summary>
+      <div class="feature-body">
+        <h3>What it's for</h3>
+        <p class="use-case">Packages and deploys the generated Mastra project to Cloudflare Workers, Vercel, or Netlify using Mastra's official deployer adapters. Each adapter handles bundling, environment variable injection, and platform-specific entry points.</p>
+        <h3>Syntax</h3>
+        <div class="code-block">
+          <div class="code-label">deploy.ts (Cloudflare Workers)</div>
+          <pre tabindex="0"><code><span class="hl-kw">import</span> <span class="hl-punct">{</span> <span class="hl-fn">createCloudflareHandler</span> <span class="hl-punct">}</span>
+  <span class="hl-kw">from</span> <span class="hl-str">"@mastra/deployer/cloudflare"</span><span class="hl-punct">;</span>
+<span class="hl-kw">import</span> <span class="hl-punct">{</span> mastra <span class="hl-punct">}</span> <span class="hl-kw">from</span> <span class="hl-str">"./mastra"</span><span class="hl-punct">;</span>
+
+<span class="hl-kw">export default</span> <span class="hl-fn">createCloudflareHandler</span><span class="hl-punct">(</span>mastra<span class="hl-punct">);</span></code></pre>
+        </div>
+      </div>
+    </details>
+
+    <!-- 24 -->
+    <details data-status="pending" data-tier="c">
+      <summary>
+        <span class="feature-num">#24</span>
+        <span class="feature-name">Workspaces / Sandboxes / Browser</span>
+        <span class="badge badge-hand">hand-wired</span>
+        <span class="badge badge-c">Tier C</span>
+        <span class="badge badge-pending">⏳ pending</span>
+        <span class="chevron">▼</span>
+      </summary>
+      <div class="feature-body">
+        <h3>What it's for</h3>
+        <p class="use-case">Provides agents with access to isolated execution environments: filesystem workspaces (read/write files), code sandboxes (run arbitrary code safely), and a headless browser (scrape, screenshot, interact with web UIs). Enables autonomous computer-use agents.</p>
+        <h3>Syntax</h3>
+        <div class="code-block">
+          <div class="code-label">tools/sandbox.ts</div>
+          <pre tabindex="0"><code><span class="hl-kw">import</span> <span class="hl-punct">{</span> <span class="hl-fn">createSandbox</span> <span class="hl-punct">}</span> <span class="hl-kw">from</span> <span class="hl-str">"@mastra/sandbox"</span><span class="hl-punct">;</span>
+
+<span class="hl-kw">const</span> sandbox <span class="hl-punct">=</span> <span class="hl-kw">await</span> <span class="hl-fn">createSandbox</span><span class="hl-punct">({</span>
+  <span class="hl-attr">runtime</span><span class="hl-punct">:</span> <span class="hl-str">"node"</span><span class="hl-punct">,</span>
+<span class="hl-punct">});</span>
+<span class="hl-kw">await</span> sandbox<span class="hl-punct">.</span><span class="hl-fn">execute</span><span class="hl-punct">(</span><span class="hl-str">"npm install lodash"</span><span class="hl-punct">);</span></code></pre>
+        </div>
+      </div>
+    </details>
+
+  </div>
+</main>
+
+<script>
+  const buttons = document.querySelectorAll('.filter-btn');
+  const cards = document.querySelectorAll('#feature-list details');
+  const stats = document.getElementById('stats');
+
+  function updateStats() {
+    const visible = [...cards].filter(c => !c.classList.contains('hidden')).length;
+    stats.textContent = `${visible} feature${visible !== 1 ? 's' : ''}`;
+  }
+
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      buttons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      const filter = btn.dataset.filter;
+      cards.forEach(card => {
+        const status = card.dataset.status;
+        const tier = card.dataset.tier;
+        let show = true;
+
+        if (filter === 'done')   show = status === 'done';
+        if (filter === 'pending') show = status === 'pending';
+        if (filter === 'tier-a')  show = tier === 'a';
+        if (filter === 'tier-b')  show = tier === 'b';
+        if (filter === 'tier-c')  show = tier === 'c';
+
+        card.classList.toggle('hidden', !show);
+      });
+
+      updateStats();
+    });
+  });
+</script>
+
+</body>
+</html>
