@@ -49,9 +49,10 @@ Model API keys come from the environment (`OPENAI_API_KEY`, `OPENROUTER_API_KEY`
 
 ```
 config.yaml
-agent/  support-agent.yaml
-model/  gpt-5-mini.yaml
-tools/  echo-tool.ts
+agent/   support-agent.yaml
+model/   gpt-5-mini.yaml
+prompt/  support-prompt.md
+tools/   echo-tool.ts
 ```
 
 **`config.yaml`**
@@ -72,11 +73,18 @@ storage:                  # optional — omit for no storage block
 ```yaml
 name: Support Agent
 description: Handles customer support questions.
-instructions: |
-  You are a helpful support assistant. Be concise and accurate.
-model: gpt-5-mini         # → model/<id>.yaml
-tools:                    # → tools/<id>.ts (optional)
+instructions: support-prompt  # → prompt/<id>.md
+model: gpt-5-mini             # → model/<id>.yaml
+tools:                        # → tools/<id>.ts (optional)
   - echo-tool
+```
+
+**`prompt/<id>.md`** — the agent's system prompt as plain Markdown. The file content is **inlined**
+into the agent that references it via `instructions`; no prompt file is emitted.
+
+```md
+You are a helpful support assistant. Be concise and accurate.
+Use the echo-tool when you need to repeat the user's input back to them.
 ```
 
 **`model/<id>.yaml`** — `provider` + `model` form Mastra's Model Router string

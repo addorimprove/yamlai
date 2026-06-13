@@ -19,6 +19,7 @@ export const ConfigSchema = z.object({
 export const AgentSchema = z.object({
   name: z.string().min(1),
   description: z.string().default(''),
+  // Prompt id: references prompt/<instructions>.md (like `model` -> model/<id>.yaml).
   instructions: z.string().min(1),
   model: z.string().min(1),
   tools: z.array(z.string().min(1)).default([]),

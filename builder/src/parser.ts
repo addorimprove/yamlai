@@ -46,6 +46,22 @@ export function parseProject(rootDir: string): ParsedProject {
     return parsed;
   }
 
+  // Reads a raw text file (e.g. a prompt .md). Returns undefined (and records an
+  // issue) when the file is missing or blank.
+  function readText(relPath: string): string | undefined {
+    const abs = join(rootDir, relPath);
+    if (!existsSync(abs)) {
+      addIssue(relPath, 'file not found');
+      return undefined;
+    }
+    const content = readFileSync(abs, 'utf8');
+    if (content.trim() === '') {
+      addIssue(relPath, 'file is empty');
+      return undefined;
+    }
+    return content;
+  }
+
   // 1. config.yaml — fatal if missing/invalid (nothing else is reachable).
   const rawConfig = readYaml('config.yaml');
   if (rawConfig === undefined) throw new ParseError(issues);
@@ -71,6 +87,12 @@ export function parseProject(rootDir: string): ParsedProject {
       continue;
     }
     const agent = agentResult.data;
+
+    // instructions: `instructions` is a prompt id referencing prompt/<id>.md.
+    const promptPath = `prompt/${agent.instructions}.md`;
+    const promptContent = readText(promptPath);
+    const instructions =
+      promptContent !== undefined ? promptContent.trimEnd() : undefined;
 
     // model
     const modelPath = `model/${agent.model}.yaml`;
@@ -108,14 +130,14 @@ export function parseProject(rootDir: string): ParsedProject {
       });
     }
 
-    // Only emit a fully-resolved agent; model issues are already recorded.
-    if (!resolvedModel) continue;
+    // Only emit a fully-resolved agent; prompt/model issues are already recorded.
+    if (instructions === undefined || !resolvedModel) continue;
 
     agents.push({
       id: agentId,
       name: agent.name,
       description: agent.description,
-      instructions: agent.instructions,
+      instructions,
       model: resolvedModel,
       tools,
     });
