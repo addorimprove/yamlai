@@ -5,7 +5,12 @@ import type { FileMap } from './types.js';
 import { MARKER_FILE } from './types.js';
 import { emitAgent } from './emit-agent.js';
 import { emitIndex } from './emit-mastra.js';
-import { emitGitignore, emitPackageJson, emitTsconfig } from './emit-project-files.js';
+import {
+  emitGitignore,
+  emitPackageJson,
+  emitPnpmWorkspace,
+  emitTsconfig,
+} from './emit-project-files.js';
 
 /** Produce the full in-memory file map for a Mastra project from a ParsedProject.
  *  Tool .ts sources are copied verbatim from rootDir; otherwise pure. */
@@ -14,6 +19,7 @@ export function generateProject(project: ParsedProject, rootDir: string): FileMa
 
   files['package.json'] = emitPackageJson(project);
   files['tsconfig.json'] = emitTsconfig();
+  files['pnpm-workspace.yaml'] = emitPnpmWorkspace();
   files['.gitignore'] = emitGitignore();
   files['src/mastra/index.ts'] = emitIndex(project);
 

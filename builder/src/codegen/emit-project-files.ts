@@ -49,3 +49,12 @@ export function emitTsconfig(): string {
 export function emitGitignore(): string {
   return ['node_modules', 'dist', '.mastra', '.env', '*.db', '*.db-*', ''].join('\n');
 }
+
+/** pnpm blocks dependency build scripts by default; mastra's bundler needs
+ *  esbuild's native binary, so whitelist it here or `mastra build` fails with
+ *  ERR_PNPM_IGNORED_BUILDS. pnpm reads this `allowBuilds` map from
+ *  pnpm-workspace.yaml (the package.json `pnpm` field is ignored). Declaring
+ *  the file also makes the generated project its own self-contained workspace. */
+export function emitPnpmWorkspace(): string {
+  return ['allowBuilds:', '  esbuild: true', ''].join('\n');
+}
