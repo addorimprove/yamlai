@@ -14,7 +14,7 @@ agents:
 logger:
   level: info             # debug | info | warn | error
 storage:
-  type: libsql            # v1: libsql only
+  type: libsql            # libsql only
   url: file:./mastra.db   # or ":memory:"
 ```
 

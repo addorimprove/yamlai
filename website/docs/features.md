@@ -4,7 +4,7 @@ title: Features
 
 # Features
 
-What you can generate from YAML today, and what's planned. Maps [Mastra](https://mastra.ai) v1 (v1.42) capabilities to YAMLAI.
+What you can generate from YAML today, and what's planned. Maps [Mastra](https://mastra.ai) capabilities to YAMLAI.
 
 ## Available now ✅
 

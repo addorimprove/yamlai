@@ -5,7 +5,7 @@ slug: /intro
 
 # YAMLAI
 
-Write YAML, get a runnable [Mastra](https://mastra.ai) v1 TypeScript agent project.
+Write YAML, get a runnable [Mastra](https://mastra.ai) TypeScript agent project.
 
 **1. Write YAML:**
 
