@@ -40,3 +40,8 @@ test('ConfigSchema accepts optional memory block', () => {
   });
   assert.equal(parsed.memory?.last_messages, 10);
 });
+
+test('MemorySchema treats bare memory (null) as an empty enabled block', () => {
+  const parsed = MemorySchema.parse(null);
+  assert.deepEqual(parsed, {});
+});

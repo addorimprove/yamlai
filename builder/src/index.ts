@@ -5,6 +5,8 @@ export type {
   ParsedProject,
   ResolvedAgent,
   ResolvedMemory,
+  ResolvedSemanticRecall,
+  ResolvedWorkingMemory,
   ResolvedModel,
   ResolvedTool,
 } from './types.js';

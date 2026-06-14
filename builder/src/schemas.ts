@@ -27,11 +27,14 @@ export const WorkingMemorySchema = z.preprocess(
   }),
 );
 
-export const MemorySchema = z.object({
-  last_messages: z.number().int().positive().optional(),
-  semantic_recall: SemanticRecallSchema.optional(),
-  working_memory: WorkingMemorySchema.optional(),
-});
+export const MemorySchema = z.preprocess(
+  (v) => (v === null ? {} : v),
+  z.object({
+    last_messages: z.number().int().positive().optional(),
+    semantic_recall: SemanticRecallSchema.optional(),
+    working_memory: WorkingMemorySchema.optional(),
+  }),
+);
 
 export const ConfigSchema = z.object({
   name: z.string().min(1),
