@@ -15,8 +15,10 @@ export function emitAgent(agent: ResolvedAgent): string {
     lines.push(`import { ${tool.exportName} } from '../tools/${tool.id}';`);
   }
   // Sub-agent imports — deduped, in listed order. Sibling files in agents/.
+  // A self-reference needs no import: the export lives in this very module.
   const seenSubImport = new Set<string>();
   for (const sub of agent.subAgents) {
+    if (sub.id === agent.id) continue;
     if (seenSubImport.has(sub.exportName)) continue;
     seenSubImport.add(sub.exportName);
     lines.push(`import { ${sub.exportName} } from './${sub.id}';`);
@@ -54,14 +56,26 @@ export function emitAgent(agent: ResolvedAgent): string {
 
   if (agent.subAgents.length > 0) {
     const agentVars = [...new Set(agent.subAgents.map((s) => s.exportName))].join(', ');
-    fields.push(`  agents: { ${agentVars} },`);
+    // Cyclic agents (incl. self-reference) emit a thunk so the referenced
+    // bindings are read lazily, past their temporal dead zone.
+    fields.push(
+      agent.lazyAgents
+        ? `  agents: () => ({ ${agentVars} }),`
+        : `  agents: { ${agentVars} },`,
+    );
   }
 
   if (agent.memory) {
     fields.push(`  memory,`);
   }
 
-  lines.push(`export const ${toExportName(agent.id)} = new Agent({`);
+  // Cyclic agents reference their own binding inside the `agents` thunk; an
+  // explicit type annotation breaks the otherwise-circular type inference
+  // (TS7022/TS7023 "implicitly has type any ... referenced in its own initializer").
+  const decl = agent.lazyAgents
+    ? `export const ${toExportName(agent.id)}: Agent = new Agent({`
+    : `export const ${toExportName(agent.id)} = new Agent({`;
+  lines.push(decl);
   lines.push(...fields);
   lines.push(`});`);
   lines.push('');

@@ -45,12 +45,16 @@ test('errors when a sub-agent is not listed in config.yaml', () => {
   assert.throws(() => parseProject(dir), /sub-agent not found: ghost-agent/);
 });
 
-test('errors on a self-reference', () => {
+test('allows a self-reference and flags the agent as lazy', () => {
   const dir = makeProject(twoAgents('agents: [parent]\n'));
-  assert.throws(() => parseProject(dir), /circular sub-agent reference: parent -> parent/);
+  const project = parseProject(dir);
+  const parent = project.agents.find((a) => a.id === 'parent');
+  assert.ok(parent);
+  assert.deepEqual(parent.subAgents, [{ id: 'parent', exportName: 'parent' }]);
+  assert.equal(parent.lazyAgents, true);
 });
 
-test('errors on a two-node cycle', () => {
+test('allows a two-node cycle and flags both agents as lazy', () => {
   const dir = makeProject({
     'config.yaml': 'name: x\nagents: [a, b]\n',
     'agent/a.yaml': 'name: A\ninstructions: p\nmodel: m\nagents: [b]\n',
@@ -58,29 +62,31 @@ test('errors on a two-node cycle', () => {
     'prompt/p.md': PROMPT,
     'model/m.yaml': MODEL,
   });
-  assert.throws(() => parseProject(dir), /circular sub-agent reference: a -> b -> a/);
+  const project = parseProject(dir);
+  assert.equal(project.agents.find((x) => x.id === 'a')?.lazyAgents, true);
+  assert.equal(project.agents.find((x) => x.id === 'b')?.lazyAgents, true);
 });
 
-test('detects a cycle in a graph with multiple independent components', () => {
-  // Two disjoint sub-graphs: a -> b (acyclic) and c -> d -> c (cyclic). The DFS
-  // must keep scanning past the acyclic component and report the c/d cycle.
+test('flags only the cyclic component, not acyclic agents that point into it', () => {
+  // c -> a -> b -> a : a and b are on the cycle; c merely delegates into it.
   const dir = makeProject({
-    'config.yaml': 'name: x\nagents: [a, b, c, d]\n',
+    'config.yaml': 'name: x\nagents: [a, b, c]\n',
     'agent/a.yaml': 'name: A\ninstructions: p\nmodel: m\nagents: [b]\n',
-    'agent/b.yaml': 'name: B\ninstructions: p\nmodel: m\n',
-    'agent/c.yaml': 'name: C\ninstructions: p\nmodel: m\nagents: [d]\n',
-    'agent/d.yaml': 'name: D\ninstructions: p\nmodel: m\nagents: [c]\n',
+    'agent/b.yaml': 'name: B\ninstructions: p\nmodel: m\nagents: [a]\n',
+    'agent/c.yaml': 'name: C\ninstructions: p\nmodel: m\nagents: [a]\n',
     'prompt/p.md': PROMPT,
     'model/m.yaml': MODEL,
   });
-  assert.throws(() => parseProject(dir), /circular sub-agent reference: c -> d -> c/);
+  const project = parseProject(dir);
+  assert.equal(project.agents.find((x) => x.id === 'a')?.lazyAgents, true);
+  assert.equal(project.agents.find((x) => x.id === 'b')?.lazyAgents, true);
+  assert.equal(project.agents.find((x) => x.id === 'c')?.lazyAgents, false);
 });
 
-test('a reference to a declared-but-broken agent reports the load failure, not a false cycle', () => {
+test('a reference to a declared-but-broken agent reports the load failure', () => {
   // `b` is declared in config (so it passes the "must be in config" check) but its
-  // file is missing — so it never gets a ref-list. The cycle detector must skip the
-  // a -> b edge (partial graph) rather than crash or misreport, and the missing file
-  // is surfaced as the failure.
+  // file is missing — so it never gets a ref-list. The graph walk must skip the
+  // a -> b edge (partial graph) rather than crash, and the missing file is surfaced.
   const dir = makeProject({
     'config.yaml': 'name: x\nagents: [a, b]\n',
     'agent/a.yaml': 'name: A\ninstructions: p\nmodel: m\nagents: [b]\n',
@@ -88,10 +94,5 @@ test('a reference to a declared-but-broken agent reports the load failure, not a
     'prompt/p.md': PROMPT,
     'model/m.yaml': MODEL,
   });
-  assert.throws(() => parseProject(dir), (err) => {
-    const msg = String(err);
-    assert.match(msg, /agent\/b\.yaml/);
-    assert.doesNotMatch(msg, /circular sub-agent reference/);
-    return true;
-  });
+  assert.throws(() => parseProject(dir), /agent\/b\.yaml/);
 });

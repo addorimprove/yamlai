@@ -20,42 +20,30 @@ function formatZodError(err: z.ZodError): string {
     .join('; ');
 }
 
-/** Returns a cycle path (e.g. ['a','b','a']) if the sub-agent graph contains one,
- *  else null. Only edges to nodes present in the graph are followed; references to
- *  agents missing a ref-list are validated separately. Detects self-references. */
-function detectSubAgentCycle(graph: Map<string, string[]>): string[] | null {
-  const WHITE = 0;
-  const GREY = 1;
-  const BLACK = 2;
-  const color = new Map<string, number>();
-  const stack: string[] = [];
-
-  function visit(node: string): string[] | null {
-    color.set(node, GREY);
-    stack.push(node);
-    for (const next of graph.get(node) ?? []) {
-      if (!graph.has(next)) continue; // invalid/unresolved ref — reported elsewhere
-      const c = color.get(next) ?? WHITE;
-      if (c === GREY) {
-        return [...stack.slice(stack.indexOf(next)), next];
+/** Returns the set of nodes that lie on a delegation cycle (including
+ *  self-loops). Edges to nodes absent from the graph — unresolved/invalid
+ *  references, reported elsewhere — are not followed. Cycles are allowed (Mastra
+ *  exposes each sub-agent as a runtime tool, so recursion is bounded by the
+ *  agent's step limit); these nodes only need their `agents` field emitted lazily
+ *  to dodge ESM temporal-dead-zone / circular-import crashes at module load. */
+function findCyclicNodes(graph: Map<string, string[]>): Set<string> {
+  const cyclic = new Set<string>();
+  for (const start of graph.keys()) {
+    // Walk forward from `start`; if we ever reach `start` again it is on a cycle.
+    const seen = new Set<string>();
+    const stack = [...(graph.get(start) ?? [])];
+    while (stack.length > 0) {
+      const node = stack.pop() as string;
+      if (node === start) {
+        cyclic.add(start);
+        break;
       }
-      if (c === WHITE) {
-        const found = visit(next);
-        if (found) return found;
-      }
-    }
-    stack.pop();
-    color.set(node, BLACK);
-    return null;
-  }
-
-  for (const node of graph.keys()) {
-    if ((color.get(node) ?? WHITE) === WHITE) {
-      const found = visit(node);
-      if (found) return found;
+      if (seen.has(node) || !graph.has(node)) continue;
+      seen.add(node);
+      for (const next of graph.get(node) ?? []) stack.push(next);
     }
   }
-  return null;
+  return cyclic;
 }
 
 function resolveMemory(m: MemoryInput): ResolvedMemory {
@@ -211,6 +199,7 @@ export function parseProject(rootDir: string): ParsedProject {
       model: resolvedModel,
       tools,
       subAgents: agent.agents.map((id) => ({ id, exportName: toExportName(id) })),
+      lazyAgents: false, // set below once the full sub-agent graph is known
       memory: agent.memory,
     });
   }
@@ -231,12 +220,11 @@ export function parseProject(rootDir: string): ParsedProject {
       }
     }
   }
-  const cycle = detectSubAgentCycle(subAgentRefs);
-  if (cycle) {
-    addIssue(
-      `agent/${cycle[0]}.yaml`,
-      `circular sub-agent reference: ${cycle.join(' -> ')}`,
-    );
+  // Cycles (incl. self-reference) are permitted; flag the agents on a cycle so
+  // codegen emits their `agents` field lazily.
+  const cyclicNodes = findCyclicNodes(subAgentRefs);
+  for (const agent of agents) {
+    if (cyclicNodes.has(agent.id)) agent.lazyAgents = true;
   }
 
   if (issues.length > 0) throw new ParseError(issues);

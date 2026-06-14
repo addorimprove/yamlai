@@ -57,5 +57,18 @@ The prompt is inlined into `instructions`; tools and sub-agents are imported by 
 
 Each id in `agents` must reference an `agent/<id>.yaml` that is **also listed in
 `config.yaml`'s `agents:`**. Mastra exposes each sub-agent to this agent as a callable
-tool, so its model can delegate work to specialised agents. Cycles — including an agent
-referencing itself — are rejected at build time.
+tool, so its model can delegate work to specialised agents.
+
+Cycles — including an agent referencing itself — are allowed: Mastra delegates through a
+runtime tool call, so recursion is bounded by the agent's step limit rather than forbidden.
+When an agent sits on a cycle, its `agents` field is emitted as a thunk
+(`agents: () => ({ ... })`) so the circular bindings resolve lazily, and the export
+gets an explicit `: Agent` annotation to break the self-referential type inference:
+
+```typescript
+// agent/a.yaml: agents: [a]  →  src/mastra/agents/a.ts
+export const a: Agent = new Agent({
+  // ...
+  agents: () => ({ a }),
+});
+```
