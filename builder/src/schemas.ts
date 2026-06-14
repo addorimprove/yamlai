@@ -12,14 +12,14 @@ const MessageRangeSchema = z.union([
   }),
 ]);
 
-export const SemanticRecallSchema = z.object({
+const SemanticRecallSchema = z.object({
   embedder: z.string().min(1),
   top_k: z.number().int().positive().default(4),
   message_range: MessageRangeSchema.default({ before: 1, after: 1 }),
   scope: ScopeSchema.optional(),
 });
 
-export const WorkingMemorySchema = z.preprocess(
+const WorkingMemorySchema = z.preprocess(
   (v) => (v === null ? {} : v),
   z.object({
     template: z.string().min(1).optional(),

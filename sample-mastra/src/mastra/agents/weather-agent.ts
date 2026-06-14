@@ -4,7 +4,7 @@ import { LibSQLStore, LibSQLVector } from '@mastra/libsql';
 import { weatherTool } from '../tools/weather-tool';
 import { scorers } from '../scorers/weather-scorer';
 
-// Reference: full Memory shape we plan to map from `memory/<id>.yaml`.
+// Reference: full Memory shape generated from the `memory:` block in config.yaml.
 // storage/vector default to libsql; embedder is a model-router string.
 const weatherMemory = new Memory({
   storage: new LibSQLStore({ id: 'weather-memory-storage', url: 'file:./mastra.db' }),
