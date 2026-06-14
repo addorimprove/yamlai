@@ -109,8 +109,7 @@ export const supportAgent = new Agent({
   description: 'Handles customer support questions.',
   instructions: `You are a helpful support assistant. Be concise and accurate.
 Use the echo-tool when you need to repeat the user's input back to them.`,
-  model: 'openai/gpt-5-mini',
-  modelSettings: { temperature: 0.7, maxTokens: 2048 },
+  model: [{ model: 'openai/gpt-5-mini', modelSettings: { temperature: 0.7, maxOutputTokens: 2048 } }],
   tools: { echoTool },
 });
 ```
