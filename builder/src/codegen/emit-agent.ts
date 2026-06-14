@@ -26,17 +26,18 @@ export function emitAgent(agent: ResolvedAgent): string {
     fields.push(`  description: ${JSON.stringify(agent.description)},`);
   }
   fields.push(`  instructions: \`${backtickString(agent.instructions)}\`,`);
-  fields.push(`  model: ${JSON.stringify(agent.model.routerString)},`);
-
   const settings: string[] = [];
   if (agent.model.temperature !== undefined) {
     settings.push(`temperature: ${agent.model.temperature}`);
   }
   if (agent.model.maxTokens !== undefined) {
-    settings.push(`maxTokens: ${agent.model.maxTokens}`);
+    settings.push(`maxOutputTokens: ${agent.model.maxTokens}`);
   }
+  const modelStr = JSON.stringify(agent.model.routerString);
   if (settings.length > 0) {
-    fields.push(`  modelSettings: { ${settings.join(', ')} },`);
+    fields.push(`  model: [{ model: ${modelStr}, modelSettings: { ${settings.join(', ')} } }],`);
+  } else {
+    fields.push(`  model: ${modelStr},`);
   }
 
   if (agent.tools.length > 0) {
