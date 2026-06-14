@@ -4,6 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { parseProject } from '../src/parser.js';
+import { ParseError } from '../src/errors.js';
 
 function makeProject(files: Record<string, string>): string {
   const dir = mkdtempSync(join(tmpdir(), 'yamlai-'));
@@ -43,6 +44,32 @@ test('resolves sub-agent references into subAgents with camelCase export names',
 test('errors when a sub-agent is not listed in config.yaml', () => {
   const dir = makeProject(twoAgents('agents: [ghost-agent]\n'));
   assert.throws(() => parseProject(dir), /sub-agent not found: ghost-agent/);
+});
+
+test('a repeated undeclared sub-agent ref is reported only once', () => {
+  const dir = makeProject(twoAgents('agents: [ghost-agent, ghost-agent]\n'));
+  assert.throws(
+    () => parseProject(dir),
+    (err: unknown) => {
+      assert.ok(err instanceof ParseError);
+      const ghostIssues = err.issues.filter((i) => i.message.includes('sub-agent not found: ghost-agent'));
+      assert.equal(ghostIssues.length, 1);
+      return true;
+    },
+  );
+});
+
+test('two distinct undeclared sub-agent refs are each reported', () => {
+  const dir = makeProject(twoAgents('agents: [ghost-a, ghost-b]\n'));
+  assert.throws(
+    () => parseProject(dir),
+    (err: unknown) => {
+      assert.ok(err instanceof ParseError);
+      const missing = err.issues.filter((i) => i.message.includes('sub-agent not found'));
+      assert.equal(missing.length, 2);
+      return true;
+    },
+  );
 });
 
 test('allows a self-reference and flags the agent as lazy', () => {

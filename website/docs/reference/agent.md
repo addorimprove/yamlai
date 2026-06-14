@@ -44,7 +44,8 @@ export const supportAgent = new Agent({
   description: "Handles customer support questions.",
   instructions: `You are a helpful support assistant. Be concise and accurate.
 Use the echo-tool when you need to repeat the user's input back to them.`,
-  model: "openai/gpt-5-mini",   // resolved from model/gpt-5-mini.yaml — see model.md
+  // resolved from model/gpt-5-mini.yaml (which sets temperature/max_tokens) — see model.md
+  model: [{ model: "openai/gpt-5-mini", modelSettings: { temperature: 0.7, maxOutputTokens: 2048 } }],
   tools: { echoTool },
   agents: { researchAgent },
   memory,
@@ -58,6 +59,11 @@ The prompt is inlined into `instructions`; tools and sub-agents are imported by 
 Each id in `agents` must reference an `agent/<id>.yaml` that is **also listed in
 `config.yaml`'s `agents:`**. Mastra exposes each sub-agent to this agent as a callable
 tool, so its model can delegate work to specialised agents.
+
+The sub-agent is keyed by its **camelCase export name**, not its YAML id — `research-agent`
+is emitted as `agents: { researchAgent }` (the same naming as `tools`). Mastra wraps it as a
+delegation tool named `agent-<exportName>` (here `agent-researchAgent`), so prompts that steer
+delegation should refer to that name, not the YAML id `research-agent`.
 
 Cycles — including an agent referencing itself — are allowed: Mastra delegates through a
 runtime tool call, so recursion is bounded by the agent's step limit rather than forbidden.

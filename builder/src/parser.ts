@@ -210,8 +210,9 @@ export function parseProject(rootDir: string): ParsedProject {
   }
 
   // Every referenced sub-agent must also be a declared agent in config.yaml.
+  // Dedupe refs so a repeated id (e.g. `agents: [x, x]`) is reported once.
   for (const [parentId, refs] of subAgentRefs) {
-    for (const ref of refs) {
+    for (const ref of new Set(refs)) {
       if (!configAgentSet.has(ref)) {
         addIssue(
           `agent/${parentId}.yaml`,
