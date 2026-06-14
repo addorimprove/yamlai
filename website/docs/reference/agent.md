@@ -36,21 +36,22 @@ agents:
 import { Agent } from '@mastra/core/agent';
 import { echoTool } from '../tools/echo-tool';
 import { researchAgent } from './research-agent';
+import { memory } from '../utils/memory';
 
 export const supportAgent = new Agent({
-  id: 'support-agent',
-  name: 'Support Agent',
-  description: 'Handles customer support questions.',
+  id: "support-agent",
+  name: "Support Agent",
+  description: "Handles customer support questions.",
   instructions: `You are a helpful support assistant. Be concise and accurate.
 Use the echo-tool when you need to repeat the user's input back to them.`,
-  model: 'openai/gpt-5-mini',
-  modelSettings: { temperature: 0.7, maxTokens: 2048 },
+  model: "openai/gpt-5-mini",   // resolved from model/gpt-5-mini.yaml — see model.md
   tools: { echoTool },
   agents: { researchAgent },
+  memory,
 });
 ```
 
-The prompt is inlined into `instructions`, the model becomes the router string + `modelSettings`, and tools are imported by camelCase name.
+The prompt is inlined into `instructions`; tools and sub-agents are imported by camelCase name. The `model` id resolves to the Model Router string (plus `modelSettings` when the model file sets `temperature`/`max_tokens`) — that mapping lives in **[model/&lt;id&gt;.yaml](./model.md)**, not here.
 
 ## Sub-agents (`agents`)
 

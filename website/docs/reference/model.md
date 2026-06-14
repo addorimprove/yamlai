@@ -22,7 +22,7 @@ max_tokens: 2048
 | `temperature` | number | No | provider default | `0`–`2`. |
 | `max_tokens` | integer | No | provider default | Positive integer. |
 
-`provider` + `model` are joined into the Model Router string `"<provider>/<model>"`. `temperature` / `max_tokens` map to `modelSettings` (note `max_tokens` → `maxTokens`). API keys come from env vars (e.g. `OPENAI_API_KEY`), never YAML.
+`provider` + `model` are joined into the Model Router string `"<provider>/<model>"`. `temperature` / `max_tokens` map to `modelSettings` (note `max_tokens` → `maxOutputTokens`). API keys come from env vars (e.g. `OPENAI_API_KEY`), never YAML.
 
 ```text
 provider: openrouter
@@ -31,7 +31,14 @@ model: anthropic/claude-3.5-haiku   →  "openrouter/anthropic/claude-3.5-haiku"
 
 ## Inlined into the referencing agent
 
+With `temperature` / `max_tokens` set, the model becomes a fallback-array entry carrying `modelSettings`:
+
 ```typescript
-  model: 'openai/gpt-5-mini',
-  modelSettings: { temperature: 0.7, maxTokens: 2048 },
+  model: [{ model: "openai/gpt-5-mini", modelSettings: { temperature: 0.7, maxOutputTokens: 2048 } }],
+```
+
+With neither set, it is a plain Model Router string:
+
+```typescript
+  model: "openai/gpt-5-mini",
 ```
