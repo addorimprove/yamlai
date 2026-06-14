@@ -41,9 +41,11 @@ export function emitMemory(memory: ResolvedMemory, storageUrl: string): string {
     options.push(`    workingMemory: { ${parts.join(', ')} },`);
   }
 
-  ctor.push(`  options: {`);
-  ctor.push(...options);
-  ctor.push(`  },`);
+  if (options.length > 0) {
+    ctor.push(`  options: {`);
+    ctor.push(...options);
+    ctor.push(`  },`);
+  }
 
   lines.push(`export const memory = new Memory({`);
   lines.push(...ctor);

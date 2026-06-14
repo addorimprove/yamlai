@@ -59,3 +59,10 @@ test('emits semantic recall with shorthand messageRange number', () => {
   const out = emitMemory(memory, 'file:./mastra.db');
   assert.match(out, /semanticRecall: \{ topK: 4, messageRange: 2 \},/);
 });
+
+test('omits empty options block when no options present', () => {
+  const out = emitMemory({}, 'file:./mastra.db');
+  assert.doesNotMatch(out, /options:/);
+  assert.match(out, /export const memory = new Memory\(\{/);
+  assert.match(out, /storage: new LibSQLStore\(\{ id: 'memory-storage', url: "file:\.\/mastra\.db" \}\),/);
+});
