@@ -101,4 +101,27 @@ npm run dev                    # local Mastra playground
 `--force` deletes and rewrites the whole output dir. Keep `.env` and hand-edits, or re-add them after regenerating.
 :::
 
+## Optional: add memory
+
+Add a `memory:` block to `config.yaml` and opt agents in with `memory: true`:
+
+```yaml
+storage:
+  type: libsql
+  url: file:./mastra.db
+memory:
+  last_messages: 20
+  semantic_recall:
+    embedder: openai/text-embedding-3-small
+  working_memory:
+    template: "# User\n- Name:"
+```
+
+```yaml
+# agent/support-agent.yaml
+memory: true   # opt in to the project memory
+```
+
+The generator emits `src/mastra/utils/memory.ts` and wires it into each opted-in agent. See [Memory reference](./reference/memory.md) for all options.
+
 → [YAML Reference](./reference/config.md) · [CLI Reference](./cli.md) · [Examples](./examples.md)

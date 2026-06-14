@@ -15,6 +15,7 @@ const sidebars: SidebarsConfig = {
         'reference/model',
         'reference/prompt',
         'reference/tools',
+        'reference/memory',
       ],
     },
     'cli',
