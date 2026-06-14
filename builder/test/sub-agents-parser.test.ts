@@ -158,3 +158,28 @@ test('a self-reference does not trip the module collision check', () => {
   const dir = makeProject(twoAgents('agents: [parent]\n'));
   assert.doesNotThrow(() => parseProject(dir));
 });
+
+test('rejects a tool id colliding with the reserved `memory` import', () => {
+  // A memory-enabled agent emits `import { memory } from '../utils/memory'`; a
+  // tool id `memory` would emit a second `memory` binding in the same module.
+  const dir = makeProject({
+    'config.yaml':
+      'name: x\nagents: [parent]\nstorage:\n  type: libsql\n  url: file:./m.db\nmemory:\n  last_messages: 5\n',
+    'agent/parent.yaml': 'name: P\ninstructions: p\nmodel: m\nmemory: true\ntools: [memory]\n',
+    'tools/memory.ts': 'export const memory = {};\n',
+    'prompt/p.md': PROMPT,
+    'model/m.yaml': MODEL,
+  });
+  assert.throws(() => parseProject(dir), /export name `memory` is produced by multiple bindings/);
+});
+
+test('rejects an agent id colliding with the reserved `Agent` import', () => {
+  // An agent id `Agent` collides with `import { Agent } from '@mastra/core/agent'`.
+  const dir = makeProject({
+    'config.yaml': 'name: x\nagents: [Agent]\n',
+    'agent/Agent.yaml': 'name: A\ninstructions: p\nmodel: m\n',
+    'prompt/p.md': PROMPT,
+    'model/m.yaml': MODEL,
+  });
+  assert.throws(() => parseProject(dir), /export name `Agent` is produced by multiple bindings/);
+});
