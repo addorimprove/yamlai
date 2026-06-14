@@ -2,6 +2,14 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Superseded note (2026-06-14, post-merge):** this plan was executed as written, but the
+> **cycle-rejection** decision was later reversed. Cycles — including self-reference — are now
+> **allowed** (Mastra delegates via a runtime tool, so recursion is bounded by the step limit). The
+> parser flags agents on a cycle (`findCyclicNodes`, replacing `detectSubAgentCycle`) and codegen
+> emits their `agents` field as a thunk `() => ({ ... })` with a `: Agent` annotation. Treat every
+> "reject cycle" / "circular sub-agent reference" step below as historical. Current behavior lives in
+> `builder/src/{parser,codegen/emit-agent}.ts` and `website/docs/reference/agent.md`.
+
 **Goal:** Let an agent delegate to other agents via a new optional `agents: [<id>]` field on `agent/<id>.yaml`, generating `agents: { <camelId> }` on the parent's `new Agent({...})`.
 
 **Architecture:** Extend the existing parse → resolve → codegen pipeline. `schemas.ts` validates the new `agents` array; `parser.ts` resolves each reference into a `ResolvedSubAgent` on the parent's `ResolvedAgent`, validates that every reference is a declared agent, and rejects cycles; `emit-agent.ts` adds the import + `agents:` field. `index.ts` (the Mastra registry) is unchanged — sub-agents are already registered there because they must also be listed in `config.yaml`. No new dependency.

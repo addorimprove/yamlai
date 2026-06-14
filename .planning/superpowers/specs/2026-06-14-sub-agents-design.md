@@ -4,6 +4,17 @@
 **Component:** Sub-agent (multi-agent delegation) support for the YAML Agent Builder (roadmap feature #9)
 **Related:** [`2026-06-13-parser-design.md`](./2026-06-13-parser-design.md), [`2026-06-13-codegen-design.md`](./2026-06-13-codegen-design.md), [`2026-06-14-memory-design.md`](./2026-06-14-memory-design.md), `builder/src/`, `examples/`
 
+> **Amendment (2026-06-14, post-implementation):** the **Cycles** decision below was
+> reversed. Cycles — including self-reference — are now **allowed**, matching Mastra
+> (which exposes each sub-agent as a runtime delegation tool, so recursion is bounded by
+> the agent's step limit, not the import graph). Agents on a cycle are flagged
+> (`findCyclicNodes`) and codegen emits their `agents` field as a thunk
+> (`agents: () => ({ ... })`) with an explicit `: Agent` annotation — this dodges the ESM
+> temporal-dead-zone / duplicate-identifier crash and the `TS7022` self-referential
+> inference error. The "Static map only" / "Dynamic function agents out of scope" notes no
+> longer hold for cyclic agents. Sections below are kept as the original design record;
+> read them through this amendment.
+
 ## Purpose
 
 Let an agent delegate to other agents. A parent agent declares `agents: [research-agent]` in its
@@ -21,7 +32,7 @@ In scope (v1):
 
 - New optional agent field `agents: [<id>, ...]` (list of sub-agent ids; default `[]`).
 - Each referenced id must be an agent **also listed in `config.yaml`'s `agents:`** (validated).
-- Parser: validate references exist; detect cycles (incl. self-reference); resolve to export names.
+- Parser: validate references exist; flag cycles (incl. self-reference) for lazy codegen — cycles are allowed; resolve to export names.
 - Codegen: in the parent agent file, import each sub-agent and add the `agents: { ... }` field.
 - Example + docs + tests.
 
@@ -32,8 +43,9 @@ Out of scope (deferred):
   agents.)
 - **Delegation configuration** — Mastra's `subAgentDelegation` / per-invocation overrides /
   `onDelegationStart` callbacks. v1 emits a bare `agents: { ... }` map only.
-- **Dynamic (function-based) agents** — Mastra accepts `agents` as a function returning the map;
-  v1 emits a static object literal.
+- **Dynamic (function-based) agents** — Mastra accepts `agents` as a function returning the map.
+  v1 emits a static object literal for acyclic agents; **cyclic agents do emit the function form**
+  (a thunk) as the mechanism for lazy binding resolution (see amendment), not as a user-facing knob.
 - **`SubAgent` lightweight implementations** — we only ever pass full `Agent` instances.
 
 ## Decisions
@@ -43,13 +55,13 @@ Out of scope (deferred):
 | Declaration | New optional `agents:` array on `agent/<id>.yaml`, exactly mirroring `tools:` (list of ids → references `agent/<id>.yaml`). |
 | Registration requirement | A referenced sub-agent **must** be listed in `config.yaml`'s `agents:`. The reference only validates the id is a known, registered agent — no new discovery logic, preserves the "agents are an explicit list" invariant. |
 | Top-level registration | Because sub-agents are already in `config.yaml`, they remain registered in `new Mastra({ agents })` and are directly callable via the API/playground. Accepted: there is no "private" sub-agent in v1. |
-| Cycles | Any cycle (`A→A`, `A→B→A`, …) is a hard error, aggregated into `ParseError`. Guarantees the generated agent-file import graph is a DAG (no circular ESM / TDZ), and prevents runtime delegation loops. v1 reports the **first** cycle found. |
+| Cycles | **(Amended — see banner.)** ~~Any cycle is a hard error.~~ Cycles (incl. self-reference) are **allowed**; agents on a cycle are flagged and emit their `agents` field as a thunk + `: Agent` annotation to avoid ESM TDZ / circular-import / `TS7022` issues. Runtime recursion is bounded by Mastra's per-agent step limit. |
 | Missing reference | A referenced id not present in `config.yaml`'s `agents:` → issue `sub-agent not found: <id> (must be listed in config.yaml agents)`. |
 | Resolved shape | New `ResolvedSubAgent { id, exportName }`; `ResolvedAgent.subAgents: ResolvedSubAgent[]` (mirrors `ResolvedTool` / `tools`). |
 | Codegen — agent file | Import `{ <camelId> } from './<sub-id>'` (same agents dir), add `agents: { <camelId>, ... }` after `tools` and before `memory`. Deduped, in declared order, like tools. |
 | Codegen — index.ts | **No change.** Sub-agents are already imported + registered there (they are in `config.agents`). |
 | Dependencies | **None added.** `Agent` comes from `@mastra/core/agent`, already a dependency. |
-| Tests | Golden-file `emitAgent` test (sub-agent import + `agents:` field) + parser tests (missing ref, self-cycle, two-node cycle, happy path). |
+| Tests | Golden-file `emitAgent` test (sub-agent import + `agents:` field; self-ref/cycle thunk + annotation) + parser tests (missing ref, self-reference allowed+flagged, two-node cycle allowed+flagged, happy path) + a runtime load test for cyclic agents. |
 
 ## Verified API facts
 
@@ -185,20 +197,22 @@ interface ResolvedSubAgent {
 
 - Referenced sub-agent id not present in `config.yaml`'s `agents:` →
   `sub-agent not found: <id> (must be listed in config.yaml agents)` on the parent agent file.
-- A cycle in the sub-agent graph (including self-reference) →
-  `circular sub-agent reference: a -> b -> a` attributed to the first node's file.
+- ~~A cycle in the sub-agent graph (including self-reference) → `circular sub-agent reference`.~~
+  **Amended:** cycles are no longer an error — they are allowed and flagged for lazy codegen
+  (see banner). Only missing references remain a validation error.
 
 Consistent with the parser's existing strategy: collect every issue, throw one `ParseError`; an
-agent is only emitted when fully resolved and the whole graph is acyclic.
+agent is only emitted when fully resolved.
 
 ## Notes / accepted trade-offs
 
 1. **No private sub-agents in v1.** A sub-agent is also a top-level registered agent (directly
    callable). Acceptable; transitive/private registration is the deferred upgrade.
-2. **First-cycle reporting.** When multiple independent cycles exist, only the first discovered is
-   reported; re-run after fixing to surface the next. Keeps the detector small.
-3. **Static map only.** No dynamic/function `agents`, no delegation config — those are future
-   declarative additions on top of this resolver.
+2. ~~**First-cycle reporting.**~~ **Amended:** cycles are allowed, not reported as errors; the
+   parser instead flags every agent on a cycle (`findCyclicNodes`) for lazy codegen.
+3. ~~**Static map only.**~~ **Amended:** acyclic agents emit a static `agents: { ... }` map;
+   **cyclic** agents emit the function form `agents: () => ({ ... })`. Delegation config remains a
+   future declarative addition.
 
 ## Testing
 
@@ -208,7 +222,7 @@ agent is only emitted when fully resolved and the whole graph is acyclic.
   - no sub-agents → no `agents:` field, no extra import;
   - duplicate refs deduped.
 - **`builder/test/sub-agents-parser.test.ts`** (new) — fixtures for: happy path (resolves
-  `subAgents`); missing reference (not in config) → `ParseError`; self-reference → cycle error;
-  two-node cycle → cycle error.
+  `subAgents`); missing reference (not in config) → `ParseError`; self-reference → allowed, agent
+  flagged `lazyAgents`; two-node cycle → allowed, both flagged.
 - **Integration** — `pnpm parse:example` and `pnpm gen:example` on the extended `examples/`, then
   typecheck the generated project (matches the memory feature's integration approach).
