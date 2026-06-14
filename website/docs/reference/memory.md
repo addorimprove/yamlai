@@ -7,6 +7,22 @@ title: Memory
 Declare one `memory:` block in `config.yaml`; opt agents in with `memory: true`. The generated
 project gets a shared `src/mastra/utils/memory.ts` imported by each opted-in agent.
 
+## Separation of concerns
+
+Memory is **configured in exactly one place — `config.yaml`.** Agent files never carry memory
+configuration; an agent's only memory-related field is the boolean `memory: true` opt-in. This keeps
+a single source of truth for memory and keeps agent definitions focused on the agent's own identity
+(name, instructions, model, tools).
+
+- **`config.yaml` → `memory`** owns *how* memory works (history window, semantic recall, working
+  memory). One block, project-wide.
+- **`agent/<id>.yaml` → `memory: true`** is a pure opt-in switch — *whether* this agent uses it.
+  There is intentionally no per-agent memory configuration.
+
+All opted-in agents therefore share the same generated `Memory` instance. Per-agent variation (named
+memory configs) is a planned, backward-compatible extension; until then, the boundary stays strict:
+config configures, agents only opt in.
+
 ## config.yaml
 
 ```yaml
