@@ -6,6 +6,7 @@ export function emitPackageJson(project: ParsedProject): string {
     '@mastra/core': VERSIONS['@mastra/core'],
     '@mastra/loggers': VERSIONS['@mastra/loggers'],
     ...(project.storage ? { '@mastra/libsql': VERSIONS['@mastra/libsql'] } : {}),
+    ...(project.memory ? { '@mastra/memory': VERSIONS['@mastra/memory'] } : {}),
     zod: VERSIONS.zod,
   };
   const pkg = {
