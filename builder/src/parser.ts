@@ -20,6 +20,44 @@ function formatZodError(err: z.ZodError): string {
     .join('; ');
 }
 
+/** Returns a cycle path (e.g. ['a','b','a']) if the sub-agent graph contains one,
+ *  else null. Only edges to nodes present in the graph are followed; references to
+ *  agents missing a ref-list are validated separately. Detects self-references. */
+function detectSubAgentCycle(graph: Map<string, string[]>): string[] | null {
+  const WHITE = 0;
+  const GREY = 1;
+  const BLACK = 2;
+  const color = new Map<string, number>();
+  const stack: string[] = [];
+
+  function visit(node: string): string[] | null {
+    color.set(node, GREY);
+    stack.push(node);
+    for (const next of graph.get(node) ?? []) {
+      if (!graph.has(next)) continue; // invalid/unresolved ref — reported elsewhere
+      const c = color.get(next) ?? WHITE;
+      if (c === GREY) {
+        return [...stack.slice(stack.indexOf(next)), next];
+      }
+      if (c === WHITE) {
+        const found = visit(next);
+        if (found) return found;
+      }
+    }
+    stack.pop();
+    color.set(node, BLACK);
+    return null;
+  }
+
+  for (const node of graph.keys()) {
+    if ((color.get(node) ?? WHITE) === WHITE) {
+      const found = visit(node);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 function resolveMemory(m: MemoryInput): ResolvedMemory {
   const out: ResolvedMemory = {};
   if (m.last_messages !== undefined) out.lastMessages = m.last_messages;
@@ -98,6 +136,11 @@ export function parseProject(rootDir: string): ParsedProject {
   // 2-5. Resolve each agent (continue past errors to collect them all).
   const agents: ResolvedAgent[] = [];
 
+  // Sub-agent references, captured for every schema-valid agent (even ones that
+  // later fail prompt/model resolution), keyed by agent id.
+  const subAgentRefs = new Map<string, string[]>();
+  const configAgentSet = new Set(config.agents);
+
   for (const agentId of config.agents) {
     const agentPath = `agent/${agentId}.yaml`;
     const rawAgent = readYaml(agentPath);
@@ -109,6 +152,7 @@ export function parseProject(rootDir: string): ParsedProject {
       continue;
     }
     const agent = agentResult.data;
+    subAgentRefs.set(agentId, agent.agents);
 
     // instructions: `instructions` is a prompt id referencing prompt/<id>.md.
     const promptPath = `prompt/${agent.instructions}.md`;
@@ -166,6 +210,7 @@ export function parseProject(rootDir: string): ParsedProject {
       instructions,
       model: resolvedModel,
       tools,
+      subAgents: agent.agents.map((id) => ({ id, exportName: toExportName(id) })),
       memory: agent.memory,
     });
   }
@@ -173,6 +218,25 @@ export function parseProject(rootDir: string): ParsedProject {
   const memoryUsed = config.memory !== undefined || agents.some((a) => a.memory);
   if (memoryUsed && !config.storage) {
     addIssue('config.yaml', 'memory requires a `storage` block in config.yaml');
+  }
+
+  // Every referenced sub-agent must also be a declared agent in config.yaml.
+  for (const [parentId, refs] of subAgentRefs) {
+    for (const ref of refs) {
+      if (!configAgentSet.has(ref)) {
+        addIssue(
+          `agent/${parentId}.yaml`,
+          `sub-agent not found: ${ref} (must be listed in config.yaml agents)`,
+        );
+      }
+    }
+  }
+  const cycle = detectSubAgentCycle(subAgentRefs);
+  if (cycle) {
+    addIssue(
+      `agent/${cycle[0]}.yaml`,
+      `circular sub-agent reference: ${cycle.join(' -> ')}`,
+    );
   }
 
   if (issues.length > 0) throw new ParseError(issues);
