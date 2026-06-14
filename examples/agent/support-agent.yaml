@@ -2,5 +2,6 @@ name: Support Agent
 description: Handles customer support questions.
 instructions: support-prompt
 model: gpt-5-mini
+memory: true
 tools:
   - echo-tool
