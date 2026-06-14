@@ -43,7 +43,7 @@ memory:
       - Name:
 ```
 
-## agent/<id>.yaml
+## agent/`<id>`.yaml
 
 ```yaml
 memory: true        # use the project memory; omit or false = no memory
