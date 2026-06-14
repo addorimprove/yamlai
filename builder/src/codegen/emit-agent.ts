@@ -14,6 +14,9 @@ export function emitAgent(agent: ResolvedAgent): string {
     seenImport.add(tool.exportName);
     lines.push(`import { ${tool.exportName} } from '../tools/${tool.id}';`);
   }
+  if (agent.memory) {
+    lines.push(`import { memory } from '../utils/memory';`);
+  }
   lines.push('');
 
   const fields: string[] = [];
@@ -39,6 +42,10 @@ export function emitAgent(agent: ResolvedAgent): string {
   if (agent.tools.length > 0) {
     const toolVars = [...new Set(agent.tools.map((t) => t.exportName))].join(', ');
     fields.push(`  tools: { ${toolVars} },`);
+  }
+
+  if (agent.memory) {
+    fields.push(`  memory,`);
   }
 
   lines.push(`export const ${toExportName(agent.id)} = new Agent({`);

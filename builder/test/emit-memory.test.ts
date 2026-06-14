@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { emitMemory } from '../src/codegen/emit-memory.js';
 import type { ResolvedMemory } from '../src/types.js';
+import { emitAgent } from '../src/codegen/emit-agent.js';
+import type { ResolvedAgent } from '../src/types.js';
 
 test('emits history + working memory (no semantic recall)', () => {
   const memory: ResolvedMemory = {
@@ -65,4 +67,26 @@ test('omits empty options block when no options present', () => {
   assert.doesNotMatch(out, /options:/);
   assert.match(out, /export const memory = new Memory\(\{/);
   assert.match(out, /storage: new LibSQLStore\(\{ id: 'memory-storage', url: "file:\.\/mastra\.db" \}\),/);
+});
+
+const BASE_AGENT: ResolvedAgent = {
+  id: 'support-agent',
+  name: 'Support Agent',
+  description: '',
+  instructions: 'hi',
+  model: { id: 'm', provider: 'openai', model: 'gpt-5-mini', routerString: 'openai/gpt-5-mini' },
+  tools: [],
+  memory: false,
+};
+
+test('emit-agent adds memory import + field when memory is true', () => {
+  const out = emitAgent({ ...BASE_AGENT, memory: true });
+  assert.match(out, /import \{ memory \} from '\.\.\/utils\/memory';/);
+  assert.match(out, /^\s*memory,$/m);
+});
+
+test('emit-agent omits memory when false', () => {
+  const out = emitAgent(BASE_AGENT);
+  assert.doesNotMatch(out, /utils\/memory/);
+  assert.doesNotMatch(out, /^\s*memory,$/m);
 });
