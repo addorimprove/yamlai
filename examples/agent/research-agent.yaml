@@ -2,3 +2,6 @@ name: Research Agent
 description: Looks up background information for the support agent.
 instructions: research-prompt
 model: gpt-5-mini
+# Self-delegation: recursively research sub-questions with itself.
+agents:
+  - research-agent
