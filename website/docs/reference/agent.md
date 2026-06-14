@@ -14,7 +14,7 @@ model: gpt-5-mini             # → model/gpt-5-mini.yaml
 tools:
   - echo-tool                # → tools/echo-tool.ts
 agents:
-  - research-agent           # → agent/research-agent.ts (must be in config.yaml)
+  - research-agent           # → agent/research-agent.yaml (must be in config.yaml)
 ```
 
 ## Fields
