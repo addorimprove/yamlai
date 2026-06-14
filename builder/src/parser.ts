@@ -3,11 +3,13 @@ import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { z } from 'zod';
 import { AgentSchema, ConfigSchema, ModelSchema } from './schemas.js';
+import type { MemoryInput } from './schemas.js';
 import { ParseError, type ParseIssue } from './errors.js';
 import { toExportName } from './naming.js';
 import type {
   ParsedProject,
   ResolvedAgent,
+  ResolvedMemory,
   ResolvedModel,
   ResolvedTool,
 } from './types.js';
@@ -16,6 +18,26 @@ function formatZodError(err: z.ZodError): string {
   return err.issues
     .map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`)
     .join('; ');
+}
+
+function resolveMemory(m: MemoryInput): ResolvedMemory {
+  const out: ResolvedMemory = {};
+  if (m.last_messages !== undefined) out.lastMessages = m.last_messages;
+  if (m.semantic_recall) {
+    out.semanticRecall = {
+      embedder: m.semantic_recall.embedder,
+      topK: m.semantic_recall.top_k,
+      messageRange: m.semantic_recall.message_range,
+      scope: m.semantic_recall.scope,
+    };
+  }
+  if (m.working_memory) {
+    out.workingMemory = {
+      template: m.working_memory.template?.trimEnd(),
+      scope: m.working_memory.scope,
+    };
+  }
+  return out;
 }
 
 /** Parse and resolve a YAML Agent Builder project rooted at `rootDir`.
@@ -133,6 +155,10 @@ export function parseProject(rootDir: string): ParsedProject {
     // Only emit a fully-resolved agent; prompt/model issues are already recorded.
     if (instructions === undefined || !resolvedModel) continue;
 
+    if (agent.memory && config.memory === undefined) {
+      addIssue(agentPath, 'memory: true but config.yaml has no `memory:` block');
+    }
+
     agents.push({
       id: agentId,
       name: agent.name,
@@ -140,15 +166,27 @@ export function parseProject(rootDir: string): ParsedProject {
       instructions,
       model: resolvedModel,
       tools,
+      memory: agent.memory,
     });
   }
 
+  const memoryUsed = config.memory !== undefined || agents.some((a) => a.memory);
+  if (memoryUsed && !config.storage) {
+    addIssue('config.yaml', 'memory requires a `storage` block in config.yaml');
+  }
+
   if (issues.length > 0) throw new ParseError(issues);
+
+  const memory =
+    config.memory !== undefined && agents.some((a) => a.memory)
+      ? resolveMemory(config.memory)
+      : undefined;
 
   return {
     name: config.name,
     logger: { level: config.logger.level },
     storage: config.storage,
+    memory,
     agents,
   };
 }
