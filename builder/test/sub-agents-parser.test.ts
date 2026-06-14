@@ -61,6 +61,21 @@ test('errors on a two-node cycle', () => {
   assert.throws(() => parseProject(dir), /circular sub-agent reference: a -> b -> a/);
 });
 
+test('detects a cycle in a graph with multiple independent components', () => {
+  // Two disjoint sub-graphs: a -> b (acyclic) and c -> d -> c (cyclic). The DFS
+  // must keep scanning past the acyclic component and report the c/d cycle.
+  const dir = makeProject({
+    'config.yaml': 'name: x\nagents: [a, b, c, d]\n',
+    'agent/a.yaml': 'name: A\ninstructions: p\nmodel: m\nagents: [b]\n',
+    'agent/b.yaml': 'name: B\ninstructions: p\nmodel: m\n',
+    'agent/c.yaml': 'name: C\ninstructions: p\nmodel: m\nagents: [d]\n',
+    'agent/d.yaml': 'name: D\ninstructions: p\nmodel: m\nagents: [c]\n',
+    'prompt/p.md': PROMPT,
+    'model/m.yaml': MODEL,
+  });
+  assert.throws(() => parseProject(dir), /circular sub-agent reference: c -> d -> c/);
+});
+
 test('a reference to a declared-but-broken agent reports the load failure, not a false cycle', () => {
   // `b` is declared in config (so it passes the "must be in config" check) but its
   // file is missing — so it never gets a ref-list. The cycle detector must skip the
