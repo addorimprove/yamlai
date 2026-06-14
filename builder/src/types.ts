@@ -37,6 +37,12 @@ export interface ResolvedMemory {
   workingMemory?: ResolvedWorkingMemory;
 }
 
+export interface ResolvedSubAgent {
+  id: string;
+  /** camelCase export variable name, e.g. "researchAgent". */
+  exportName: string;
+}
+
 export interface ResolvedAgent {
   id: string;
   name: string;
@@ -44,6 +50,12 @@ export interface ResolvedAgent {
   instructions: string;
   model: ResolvedModel;
   tools: ResolvedTool[];
+  /** Agents this agent can delegate to (referenced from its `agents:` list). */
+  subAgents: ResolvedSubAgent[];
+  /** True when this agent sits on a delegation cycle (incl. a self-reference).
+   *  Such agents must emit their `agents` field as a thunk to avoid ESM
+   *  temporal-dead-zone / circular-import crashes at module load. */
+  lazyAgents: boolean;
   /** Whether this agent imports the shared project memory. */
   memory: boolean;
 }

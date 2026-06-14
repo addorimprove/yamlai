@@ -20,6 +20,32 @@ function formatZodError(err: z.ZodError): string {
     .join('; ');
 }
 
+/** Returns the set of nodes that lie on a delegation cycle (including
+ *  self-loops). Edges to nodes absent from the graph — unresolved/invalid
+ *  references, reported elsewhere — are not followed. Cycles are allowed (Mastra
+ *  exposes each sub-agent as a runtime tool, so recursion is bounded by the
+ *  agent's step limit); these nodes only need their `agents` field emitted lazily
+ *  to dodge ESM temporal-dead-zone / circular-import crashes at module load. */
+function findCyclicNodes(graph: Map<string, string[]>): Set<string> {
+  const cyclic = new Set<string>();
+  for (const start of graph.keys()) {
+    // Walk forward from `start`; if we ever reach `start` again it is on a cycle.
+    const seen = new Set<string>();
+    const stack = [...(graph.get(start) ?? [])];
+    while (stack.length > 0) {
+      const node = stack.pop() as string;
+      if (node === start) {
+        cyclic.add(start);
+        break;
+      }
+      if (seen.has(node) || !graph.has(node)) continue;
+      seen.add(node);
+      for (const next of graph.get(node) ?? []) stack.push(next);
+    }
+  }
+  return cyclic;
+}
+
 function resolveMemory(m: MemoryInput): ResolvedMemory {
   const out: ResolvedMemory = {};
   if (m.last_messages !== undefined) out.lastMessages = m.last_messages;
@@ -98,6 +124,11 @@ export function parseProject(rootDir: string): ParsedProject {
   // 2-5. Resolve each agent (continue past errors to collect them all).
   const agents: ResolvedAgent[] = [];
 
+  // Sub-agent references, captured for every schema-valid agent (even ones that
+  // later fail prompt/model resolution), keyed by agent id.
+  const subAgentRefs = new Map<string, string[]>();
+  const configAgentSet = new Set(config.agents);
+
   for (const agentId of config.agents) {
     const agentPath = `agent/${agentId}.yaml`;
     const rawAgent = readYaml(agentPath);
@@ -109,6 +140,7 @@ export function parseProject(rootDir: string): ParsedProject {
       continue;
     }
     const agent = agentResult.data;
+    subAgentRefs.set(agentId, agent.agents);
 
     // instructions: `instructions` is a prompt id referencing prompt/<id>.md.
     const promptPath = `prompt/${agent.instructions}.md`;
@@ -166,6 +198,8 @@ export function parseProject(rootDir: string): ParsedProject {
       instructions,
       model: resolvedModel,
       tools,
+      subAgents: agent.agents.map((id) => ({ id, exportName: toExportName(id) })),
+      lazyAgents: false, // set below once the full sub-agent graph is known
       memory: agent.memory,
     });
   }
@@ -173,6 +207,72 @@ export function parseProject(rootDir: string): ParsedProject {
   const memoryUsed = config.memory !== undefined || agents.some((a) => a.memory);
   if (memoryUsed && !config.storage) {
     addIssue('config.yaml', 'memory requires a `storage` block in config.yaml');
+  }
+
+  // Every referenced sub-agent must also be a declared agent in config.yaml.
+  // Dedupe refs so a repeated id (e.g. `agents: [x, x]`) is reported once.
+  for (const [parentId, refs] of subAgentRefs) {
+    for (const ref of new Set(refs)) {
+      if (!configAgentSet.has(ref)) {
+        addIssue(
+          `agent/${parentId}.yaml`,
+          `sub-agent not found: ${ref} (must be listed in config.yaml agents)`,
+        );
+      }
+    }
+  }
+  // Cycles (incl. self-reference) are permitted; flag the agents on a cycle so
+  // codegen emits their `agents` field lazily.
+  const cyclicNodes = findCyclicNodes(subAgentRefs);
+  for (const agent of agents) {
+    if (cyclicNodes.has(agent.id)) agent.lazyAgents = true;
+  }
+
+  // Distinct ids that normalise to the same camelCase export name would emit
+  // duplicate identifiers in the generated TypeScript (e.g. `research-agent`
+  // and `research_agent` both -> `researchAgent`, or a tool id colliding with
+  // an agent id). Catch these as parse issues instead of emitting code that
+  // fails to compile. Each binding is keyed by source so the same id appearing
+  // twice (a deduped import) is not mistaken for a collision.
+  const reportCollisions = (
+    file: string,
+    bindings: { name: string; key: string }[],
+  ): void => {
+    const byName = new Map<string, Set<string>>();
+    for (const { name, key } of bindings) {
+      let keys = byName.get(name);
+      if (!keys) byName.set(name, (keys = new Set()));
+      keys.add(key);
+    }
+    for (const [name, keys] of byName) {
+      if (keys.size > 1) {
+        addIssue(
+          file,
+          `export name \`${name}\` is produced by multiple bindings (${[...keys].sort().join(', ')}); ids must yield distinct camelCase names`,
+        );
+      }
+    }
+  };
+  // Project scope: every declared agent is a top-level import in index.ts.
+  reportCollisions(
+    'config.yaml',
+    config.agents.map((id) => ({ name: toExportName(id), key: `agent:${id}` })),
+  );
+  // Module scope: an agent file's own export, its tool imports, its sub-agent
+  // imports, and the reserved imports the emitter always/conditionally adds
+  // (`Agent` from @mastra/core, `memory` from utils) all share one identifier
+  // namespace. A self-reference reuses the agent's own export (no import), so it
+  // is excluded.
+  for (const agent of agents) {
+    reportCollisions(`agent/${agent.id}.yaml`, [
+      { name: 'Agent', key: 'reserved:Agent' },
+      ...(agent.memory ? [{ name: 'memory', key: 'reserved:memory' }] : []),
+      { name: toExportName(agent.id), key: `agent:${agent.id}` },
+      ...agent.tools.map((t) => ({ name: t.exportName, key: `tool:${t.id}` })),
+      ...agent.subAgents
+        .filter((s) => s.id !== agent.id)
+        .map((s) => ({ name: s.exportName, key: `agent:${s.id}` })),
+    ]);
   }
 
   if (issues.length > 0) throw new ParseError(issues);

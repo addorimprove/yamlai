@@ -8,6 +8,7 @@ export type {
   ResolvedSemanticRecall,
   ResolvedWorkingMemory,
   ResolvedModel,
+  ResolvedSubAgent,
   ResolvedTool,
 } from './types.js';
 export { generateProject } from './codegen/generate.js';

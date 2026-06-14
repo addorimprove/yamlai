@@ -5,3 +5,5 @@ model: gpt-5-mini
 memory: true
 tools:
   - echo-tool
+agents:
+  - research-agent

@@ -29,6 +29,7 @@ description: Handles support questions
 instructions: support-prompt  # prompt/<id>.md
 model: gpt-5-mini             # model/<id>.yaml
 tools: [echo-tool]            # tools/<id>.ts
+agents: [research-agent]      # delegate to other agents
 ```
 
 | Feature | Where | Pattern |
@@ -41,6 +42,7 @@ tools: [echo-tool]            # tools/<id>.ts
 | Logger | `config.yaml` → `logger.level` | declarative |
 | Storage | `config.yaml` → `storage` (libsql) | declarative |
 | Memory | `config.yaml` → `memory` + agent `memory: true` | declarative |
+| Sub-agents | agent `agents: [<id>]` | declarative |
 
 ## Coming ⏳
 
@@ -48,7 +50,6 @@ Planned YAML, roughly in priority order. **Tier:** A = declarative/low-effort ·
 
 | # | Feature | Planned syntax | Pattern | Tier |
 |---|---|---|---|---|
-| 9 | Sub-agents | agent `agents: [research-agent]` | declarative | A |
 | 10 | Guardrails / processors | agent `input_processors`, `output_processors` | declarative | A |
 | 11 | Scorers / evals | agent `scorers: [answer-relevancy, toxicity]` | declarative | A |
 | 12 | Run limits | agent `max_steps`, `stop_when` | declarative | A |
@@ -67,7 +68,6 @@ Planned YAML, roughly in priority order. **Tier:** A = declarative/low-effort ·
 
 ### Next up
 
-1. **Sub-agents** (#9) — reuses the tools resolver; unlocks supervisor / multi-agent.
-2. **Workflows** (#15) — the tools pipeline applied to a `workflow/` folder.
-3. **Guardrails / processors** (#10) — small declarative catalog, big production value (PII, moderation, injection).
-4. **Structured output** (#16) — once the YAML→Zod schema approach is settled.
+1. **Workflows** (#15) — the tools pipeline applied to a `workflow/` folder.
+2. **Guardrails / processors** (#10) — small declarative catalog, big production value (PII, moderation, injection).
+3. **Structured output** (#16) — once the YAML→Zod schema approach is settled.

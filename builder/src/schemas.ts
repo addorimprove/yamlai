@@ -58,6 +58,7 @@ export const AgentSchema = z.object({
   instructions: z.string().min(1),
   model: z.string().min(1),
   tools: z.array(z.string().min(1)).default([]),
+  agents: z.array(z.string().min(1)).default([]),
   memory: z.boolean().default(false),
 });
 
