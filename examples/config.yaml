@@ -1,6 +1,7 @@
 name: my-mastra-app
 agents:
   - support-agent
+  - research-agent
 logger:
   level: info
 storage:
