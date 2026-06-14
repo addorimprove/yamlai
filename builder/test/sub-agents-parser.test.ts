@@ -60,3 +60,23 @@ test('errors on a two-node cycle', () => {
   });
   assert.throws(() => parseProject(dir), /circular sub-agent reference: a -> b -> a/);
 });
+
+test('a reference to a declared-but-broken agent reports the load failure, not a false cycle', () => {
+  // `b` is declared in config (so it passes the "must be in config" check) but its
+  // file is missing — so it never gets a ref-list. The cycle detector must skip the
+  // a -> b edge (partial graph) rather than crash or misreport, and the missing file
+  // is surfaced as the failure.
+  const dir = makeProject({
+    'config.yaml': 'name: x\nagents: [a, b]\n',
+    'agent/a.yaml': 'name: A\ninstructions: p\nmodel: m\nagents: [b]\n',
+    // agent/b.yaml intentionally omitted.
+    'prompt/p.md': PROMPT,
+    'model/m.yaml': MODEL,
+  });
+  assert.throws(() => parseProject(dir), (err) => {
+    const msg = String(err);
+    assert.match(msg, /agent\/b\.yaml/);
+    assert.doesNotMatch(msg, /circular sub-agent reference/);
+    return true;
+  });
+});
