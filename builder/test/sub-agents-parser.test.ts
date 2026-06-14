@@ -96,3 +96,38 @@ test('a reference to a declared-but-broken agent reports the load failure', () =
   });
   assert.throws(() => parseProject(dir), /agent\/b\.yaml/);
 });
+
+test('rejects two agent ids that collapse to the same export name', () => {
+  // `research-agent` and `research_agent` both normalise to `researchAgent`,
+  // which would emit duplicate imports/identifiers in index.ts.
+  const dir = makeProject({
+    'config.yaml': 'name: x\nagents: [research-agent, research_agent]\n',
+    'agent/research-agent.yaml': 'name: A\ninstructions: p\nmodel: m\n',
+    'agent/research_agent.yaml': 'name: B\ninstructions: p\nmodel: m\n',
+    'prompt/p.md': PROMPT,
+    'model/m.yaml': MODEL,
+  });
+  assert.throws(() => parseProject(dir), /export name `researchAgent`/);
+});
+
+test('rejects a tool id colliding with a sub-agent id within one agent module', () => {
+  // tool `research_agent` and sub-agent `research-agent` both -> `researchAgent`,
+  // which collide as two imports in the same generated module.
+  const dir = makeProject({
+    'config.yaml': 'name: x\nagents: [parent, research-agent]\n',
+    'agent/parent.yaml':
+      'name: P\ninstructions: p\nmodel: m\ntools: [research_agent]\nagents: [research-agent]\n',
+    'agent/research-agent.yaml': 'name: R\ninstructions: p\nmodel: m\n',
+    'tools/research_agent.ts': 'export const researchAgent = {};\n',
+    'prompt/p.md': PROMPT,
+    'model/m.yaml': MODEL,
+  });
+  assert.throws(() => parseProject(dir), /agent\/parent\.yaml/);
+});
+
+test('a self-reference does not trip the module collision check', () => {
+  // The self-ref reuses the agent's own export (no import), so `parent` + a
+  // `parent` sub-agent is one binding, not a collision.
+  const dir = makeProject(twoAgents('agents: [parent]\n'));
+  assert.doesNotThrow(() => parseProject(dir));
+});

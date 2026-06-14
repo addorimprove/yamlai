@@ -227,6 +227,49 @@ export function parseProject(rootDir: string): ParsedProject {
     if (cyclicNodes.has(agent.id)) agent.lazyAgents = true;
   }
 
+  // Distinct ids that normalise to the same camelCase export name would emit
+  // duplicate identifiers in the generated TypeScript (e.g. `research-agent`
+  // and `research_agent` both -> `researchAgent`, or a tool id colliding with
+  // an agent id). Catch these as parse issues instead of emitting code that
+  // fails to compile. Each binding is keyed by source so the same id appearing
+  // twice (a deduped import) is not mistaken for a collision.
+  const reportCollisions = (
+    file: string,
+    bindings: { name: string; key: string }[],
+  ): void => {
+    const byName = new Map<string, Set<string>>();
+    for (const { name, key } of bindings) {
+      let keys = byName.get(name);
+      if (!keys) byName.set(name, (keys = new Set()));
+      keys.add(key);
+    }
+    for (const [name, keys] of byName) {
+      if (keys.size > 1) {
+        addIssue(
+          file,
+          `export name \`${name}\` is produced by multiple bindings (${[...keys].sort().join(', ')}); ids must yield distinct camelCase names`,
+        );
+      }
+    }
+  };
+  // Project scope: every declared agent is a top-level import in index.ts.
+  reportCollisions(
+    'config.yaml',
+    config.agents.map((id) => ({ name: toExportName(id), key: `agent:${id}` })),
+  );
+  // Module scope: an agent file's own export, its tool imports and its
+  // sub-agent imports all share one identifier namespace. A self-reference
+  // reuses the agent's own export (no import), so it is excluded.
+  for (const agent of agents) {
+    reportCollisions(`agent/${agent.id}.yaml`, [
+      { name: toExportName(agent.id), key: `agent:${agent.id}` },
+      ...agent.tools.map((t) => ({ name: t.exportName, key: `tool:${t.id}` })),
+      ...agent.subAgents
+        .filter((s) => s.id !== agent.id)
+        .map((s) => ({ name: s.exportName, key: `agent:${s.id}` })),
+    ]);
+  }
+
   if (issues.length > 0) throw new ParseError(issues);
 
   const memory =
