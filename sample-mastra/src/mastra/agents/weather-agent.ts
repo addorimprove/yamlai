@@ -1,7 +1,29 @@
 import { Agent } from '@mastra/core/agent';
 import { Memory } from '@mastra/memory';
+import { LibSQLStore, LibSQLVector } from '@mastra/libsql';
 import { weatherTool } from '../tools/weather-tool';
 import { scorers } from '../scorers/weather-scorer';
+
+// Reference: full Memory shape generated from the `memory:` block in config.yaml.
+// storage/vector default to libsql; embedder is a model-router string.
+const weatherMemory = new Memory({
+  storage: new LibSQLStore({ id: 'weather-memory-storage', url: 'file:./mastra.db' }),
+  vector: new LibSQLVector({ id: 'weather-memory-vector', url: 'file:./mastra.db' }),
+  embedder: 'openai/text-embedding-3-small',
+  options: {
+    lastMessages: 20,
+    semanticRecall: {
+      topK: 3,
+      messageRange: { before: 2, after: 1 },
+      scope: 'resource',
+    },
+    workingMemory: {
+      enabled: true,
+      scope: 'resource',
+      template: `# User Profile\n- Name:\n- Preferred units (C/F):\n- Home city:`,
+    },
+  },
+});
 
 export const weatherAgent = new Agent({
   id: 'weather-agent',
@@ -43,5 +65,5 @@ Use the weatherTool to fetch current weather data.`,
       },
     },
   },
-  memory: new Memory(),
+  memory: weatherMemory,
 });

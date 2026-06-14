@@ -6,3 +6,16 @@ logger:
 storage:
   type: libsql
   url: file:./mastra.db
+memory:
+  last_messages: 20
+  semantic_recall:
+    embedder: openai/text-embedding-3-small
+    top_k: 3
+    message_range: { before: 2, after: 1 }
+    scope: resource
+  working_memory:
+    scope: resource
+    template: |
+      # User Profile
+      - Name:
+      - Plan tier:

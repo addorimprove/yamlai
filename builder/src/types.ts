@@ -18,6 +18,25 @@ export interface ResolvedModel {
   maxTokens?: number;
 }
 
+export interface ResolvedSemanticRecall {
+  /** `${provider}/${model}` embedder router string. */
+  embedder: string;
+  topK: number;
+  messageRange: number | { before: number; after: number };
+  scope?: 'thread' | 'resource';
+}
+
+export interface ResolvedWorkingMemory {
+  template?: string;
+  scope?: 'thread' | 'resource';
+}
+
+export interface ResolvedMemory {
+  lastMessages?: number;
+  semanticRecall?: ResolvedSemanticRecall;
+  workingMemory?: ResolvedWorkingMemory;
+}
+
 export interface ResolvedAgent {
   id: string;
   name: string;
@@ -25,11 +44,15 @@ export interface ResolvedAgent {
   instructions: string;
   model: ResolvedModel;
   tools: ResolvedTool[];
+  /** Whether this agent imports the shared project memory. */
+  memory: boolean;
 }
 
 export interface ParsedProject {
   name: string;
   logger: { level: LogLevel };
   storage?: { type: 'libsql'; url: string };
+  /** The single project-wide memory config, present only when defined AND used. */
+  memory?: ResolvedMemory;
   agents: ResolvedAgent[];
 }

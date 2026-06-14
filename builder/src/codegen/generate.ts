@@ -4,6 +4,7 @@ import type { ParsedProject } from '../types.js';
 import type { FileMap } from './types.js';
 import { emitAgent } from './emit-agent.js';
 import { emitIndex } from './emit-mastra.js';
+import { emitMemory } from './emit-memory.js';
 import {
   emitGitignore,
   emitPackageJson,
@@ -22,6 +23,10 @@ export function generateProject(project: ParsedProject, rootDir: string): FileMa
   files['pnpm-workspace.yaml'] = emitPnpmWorkspace();
   files['.gitignore'] = emitGitignore();
   files['src/mastra/index.ts'] = emitIndex(project);
+
+  if (project.memory && project.storage) {
+    files['src/mastra/utils/memory.ts'] = emitMemory(project.memory, project.storage.url);
+  }
 
   for (const agent of project.agents) {
     files[`src/mastra/agents/${agent.id}.ts`] = emitAgent(agent);

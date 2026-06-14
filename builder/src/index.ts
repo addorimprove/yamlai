@@ -4,6 +4,9 @@ export type {
   LogLevel,
   ParsedProject,
   ResolvedAgent,
+  ResolvedMemory,
+  ResolvedSemanticRecall,
+  ResolvedWorkingMemory,
   ResolvedModel,
   ResolvedTool,
 } from './types.js';
