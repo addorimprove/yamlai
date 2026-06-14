@@ -76,6 +76,7 @@ const BASE_AGENT: ResolvedAgent = {
   instructions: 'hi',
   model: { id: 'm', provider: 'openai', model: 'gpt-5-mini', routerString: 'openai/gpt-5-mini' },
   tools: [],
+  subAgents: [],
   memory: false,
 };
 

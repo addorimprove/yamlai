@@ -14,6 +14,13 @@ export function emitAgent(agent: ResolvedAgent): string {
     seenImport.add(tool.exportName);
     lines.push(`import { ${tool.exportName} } from '../tools/${tool.id}';`);
   }
+  // Sub-agent imports — deduped, in listed order. Sibling files in agents/.
+  const seenSubImport = new Set<string>();
+  for (const sub of agent.subAgents) {
+    if (seenSubImport.has(sub.exportName)) continue;
+    seenSubImport.add(sub.exportName);
+    lines.push(`import { ${sub.exportName} } from './${sub.id}';`);
+  }
   if (agent.memory) {
     lines.push(`import { memory } from '../utils/memory';`);
   }
@@ -43,6 +50,11 @@ export function emitAgent(agent: ResolvedAgent): string {
   if (agent.tools.length > 0) {
     const toolVars = [...new Set(agent.tools.map((t) => t.exportName))].join(', ');
     fields.push(`  tools: { ${toolVars} },`);
+  }
+
+  if (agent.subAgents.length > 0) {
+    const agentVars = [...new Set(agent.subAgents.map((s) => s.exportName))].join(', ');
+    fields.push(`  agents: { ${agentVars} },`);
   }
 
   if (agent.memory) {
