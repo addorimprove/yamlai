@@ -27,9 +27,9 @@ steps:
 | `output` | field map | No | `z.object({})` | Workflow output → Zod. **Not** enforced against the last step (see Gotchas). |
 | `steps` | step[] | Yes | — | The graph, in order (≥1). Each is `agent` / `tool` / `parallel`. |
 
-Mastra workflows are identified by `id` (the filename) — there is no `name` field. A `name:` left in the YAML is ignored.
+Workflows are identified by `id` (the filename); there is no `name` field (a `name:` is ignored).
 
-`agent:`/`tool:`/`step:` reference the project's existing [agent/&lt;id&gt;.yaml](./agent.md) / [tools/&lt;id&gt;.ts](./tools.md) / [workflow/steps/&lt;id&gt;.ts](./step.md) — each must resolve to an existing file (a `tool:`/`step:` file must export the camelCased id, and `agent:` ids must be in [config.yaml](./config.md) `agents:`); `validate` catches a missing or mismatched reference.
+`agent:`/`tool:`/`step:` reference an existing [agent/&lt;id&gt;.yaml](./agent.md) / [tools/&lt;id&gt;.ts](./tools.md) / [workflow/steps/&lt;id&gt;.ts](./step.md). A `tool:`/`step:` file must export the camelCased id; `agent:` ids must be in [config.yaml](./config.md) `agents:`. `validate` catches a missing or mismatched reference.
 
 ## `input` / `output` schemas
 
@@ -96,7 +96,7 @@ export const researchFlow = createWorkflow({
 
 ## Worked example — parallel
 
-`input { prompt }` → `parallel: [agent: research-agent, agent: support-agent]` → `tool: merge-answers` → `output { comparison }`. Because the merge tool runs after `.parallel([...])`, its input is the keyed-by-step-id result. Mastra types that result as a **record** (index signature) keyed by string with the common child-output shape, so the merge tool's `inputSchema` must be `z.record(z.string(), z.object({ text: z.string() }))` — an exact-keys `z.object({ 'research-agent': …, 'support-agent': … })` fails to typecheck under the generated project's strict `tsc`. (This also means all parallel children should share one output shape.)
+`input { prompt }` → `parallel: [agent: research-agent, agent: support-agent]` → `tool: merge-answers` → `output { comparison }`. The merge tool runs after `.parallel([...])`, so its input is the keyed-by-step-id **record** — its `inputSchema` must be `z.record(z.string(), z.object({ text: z.string() }))`, not exact keys (see [Gotchas](#gotchas)).
 
 ```yaml title="workflow/compare-answers.yaml"
 input:  { prompt: string }
@@ -242,40 +242,37 @@ Workflow-referenced tools (like `merge-answers`) are copied verbatim into `src/m
 
 ## Attaching workflows to an agent (`agent.workflows`)
 
-An agent may attach workflows so its model can invoke them. Each id in [`agent/<id>.yaml`](./agent.md) `workflows:` must **also** be in [config.yaml](./config.md) `workflows:`:
+Attach workflows so the agent's model can invoke them. Each id in [`agent/<id>.yaml`](./agent.md) `workflows:` must **also** be in [config.yaml](./config.md) `workflows:`:
 
 ```yaml title="agent/support-agent.yaml"
 workflows:
   - compare-answers
 ```
 
-The generated `Agent` gets a `workflows` field. **Agent⇄workflow cycles are allowed** — if an attached workflow runs the attaching agent (directly or transitively), the field is emitted **lazily off the Mastra instance** to avoid a static import cycle:
+**Agent⇄workflow cycles are allowed.** If an attached workflow runs the attaching agent (directly or transitively), the field is emitted **lazily off the Mastra instance** — keyed by the workflow's export name, with a `mastra!` assertion — to avoid a static import cycle:
 
 ```typescript
 // cyclic attachment — no static import of the workflow in the agent file
 workflows: ({ mastra }) => ({ compareAnswers: mastra!.getWorkflow("compareAnswers") }),
 ```
 
-keyed by the workflow's export/registration name, with a `mastra!` non-null assertion. Acyclic attachments use a plain static import + object instead:
-
-```typescript
-workflows: { researchFlow },
-```
-
-This is the same lazy-thunk strategy used for cyclic [sub-agents](./agent.md#sub-agents-agents).
+Acyclic attachments use a plain static import instead (`workflows: { researchFlow }`). Same lazy-thunk strategy as cyclic [sub-agents](./agent.md#sub-agents-agents).
 
 ## Gotchas
 
-The generated project is fully strict (`strict: true`, incl. `strictFunctionTypes`) on `@mastra/core` ≥1.43, so **adjacent step IO is type-checked at `tsc` time** — most shape problems below fail the build, not just the run.
+The generated project is fully strict (`strict: true`, incl. `strictFunctionTypes`) on `@mastra/core` ≥1.43 — **adjacent step IO is type-checked at `tsc` time**, so most problems below fail the build, not just the run.
 
-1. **Step shapes must chain.** Each step's output feeds the next step's input; the builder does **not** reshape between steps — insert a glue `tool:`/`step:` (like `rephrase`) to adapt shapes. A mismatch **fails `tsc`** on the generated project (e.g. a step that emits `{ text }` followed by one that needs `{ count }`). The workflow's declared `output:` is the one thing **not** enforced against the last step's actual output — a wrong `output:` block compiles and returns the actual shape, so keep `output:` in sync by hand.
-
-2. **`input:` must match the first step.** If the first step is an `agent:`, it reads `{ prompt: string }`, so the workflow `input:` must provide `{ prompt: string }`. Omitting `input:` yields `z.object({})` and the generated project **fails to compile**.
-
-3. **After a `parallel`, the next step takes a record.** `.parallel([...])` produces a result keyed by each child's step id, typed as `z.record(z.string(), <commonChildOutput>)`. The consuming `tool:`/`step:` must declare that record shape (not exact keys), and all parallel children should share one output shape — see the parallel worked example.
-
-4. **Tool `execute` signature.** A `tool:` step uses the tool's `execute` as-is. In this Mastra version a tool receives its input as the **first positional argument** — `execute: async (inputData) => ({ ... })`. A tool written the older way (`execute: async ({ context }) => …`) compiles but `context` is `undefined` at run time. Match the example tool (`tools/merge-answers.ts`). A [step](./step.md) does not have this pitfall — its `execute` is `async ({ inputData }) => …` and `inputData` is typed from `inputSchema`.
+1. **Step shapes must chain.** Each step's output is the next step's input; the builder never reshapes between them — insert a glue `tool:`/`step:` (like `rephrase`) to adapt. A mismatch fails `tsc`. The one exception: the declared `output:` is **not** checked against the last step, so keep it in sync by hand.
+2. **`input:` must match the first step.** An `agent:` first step reads `{ prompt: string }`, so `input:` must provide it. Omitting `input:` yields `z.object({})` and fails to compile.
+3. **After a `parallel`, the next step takes a record.** The result is keyed by each child's step id, typed `z.record(z.string(), <commonChildOutput>)` — the consumer must declare that record (not exact keys), and all children should share one output shape.
+4. **Tool `execute` signature.** A `tool:` receives input as its **first positional arg** — `execute: async (inputData) => …`. The older `async ({ context }) => …` compiles but `context` is `undefined` at runtime; match `tools/merge-answers.ts`. A [step](./step.md) avoids this — its `execute` is `async ({ inputData }) => …`, typed from `inputSchema`.
 
 ## Not in this version
 
-Control flow beyond sequential `.then`, `.parallel`, and `loop` (`.dountil`/`.dowhile`/`.foreach`) is deferred: `branch`/`when_step:` conditions, `parallel`/nested loops **inside** a loop body, a custom `schema/` escape hatch, and human-in-the-loop (suspend/resume). Gen-time chain/condition shape checking also stays deferred — shape mismatches surface at the generated project's strict `tsc`.
+Deferred beyond sequential `.then`, `.parallel`, and `loop` (`.dountil`/`.dowhile`/`.foreach`):
+
+- `branch` / `when_step:` conditions
+- `parallel` or nested loops **inside** a loop body
+- a custom `schema/` escape hatch
+- human-in-the-loop (suspend/resume)
+- gen-time chain/condition shape checks — mismatches surface at the generated project's strict `tsc`

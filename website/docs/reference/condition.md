@@ -6,7 +6,7 @@ title: "workflow/condition/<id>.ts"
 
 A **TypeScript module** (not YAML) exporting one loop predicate. The id is the filename (`workflow/condition/good-enough.ts` → id `good-enough`); the file **must export** its camelCase form (`goodEnough`) — `validate` checks the file exists *and* declares that export (the [id must also be a valid identifier](./config.md#id-naming)). Referenced by a [workflow](./workflow.md) `loop:`'s `until:`/`while:`. The file is copied **verbatim** into the output.
 
-A condition is a Mastra `LoopConditionFunction` — an `async` function returning a `boolean`. It receives the **loop body's output** as `inputData`, plus the engine's `iterationCount`, plus the usual step params (`mastra`, `getStepResult`, …).
+A condition is a Mastra `LoopConditionFunction`: an `async` function returning `boolean`. It receives the **loop body's output** as `inputData`, plus `iterationCount` and the usual step params (`mastra`, `getStepResult`, …).
 
 ```typescript
 // workflow/condition/good-enough.ts

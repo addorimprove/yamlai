@@ -6,7 +6,7 @@ title: "workflow/steps/<id>.ts"
 
 A **TypeScript module** (not YAML) exporting one Mastra workflow step via `createStep`. The id is the filename (`workflow/steps/rephrase.ts` → id `rephrase`); the file **must export** its camelCase form (`rephrase`) — `validate` checks the file exists *and* declares that export (the [id must also be a valid identifier](./config.md#id-naming)). Referenced by a [workflow](./workflow.md)'s `step:` leaf. The file is copied **verbatim** into the output.
 
-A step is the typed sibling of a glue [tool](./tools.md): its `execute` receives `{ inputData }` **inferred from `inputSchema`**, so a shape mistake fails `tsc` instead of surfacing as `undefined` at run time. Reach for a `step:` (not a glue `tool:`) whenever you're reshaping/merging data between agents and want that reshaping type-checked.
+A step is the typed sibling of a glue [tool](./tools.md): `execute` receives `{ inputData }` inferred from `inputSchema`, so a shape mistake fails `tsc` rather than surfacing as `undefined` at runtime. Prefer a `step:` over a glue `tool:` when you want reshaping between agents type-checked.
 
 ```typescript
 import { createStep } from '@mastra/core/workflows';

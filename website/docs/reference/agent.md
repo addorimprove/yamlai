@@ -57,20 +57,9 @@ The prompt is inlined into `instructions`; tools and sub-agents are imported by 
 
 ## Sub-agents (`agents`)
 
-Each id in `agents` must reference an `agent/<id>.yaml` that is **also listed in
-`config.yaml`'s `agents:`**. Mastra exposes each sub-agent to this agent as a callable
-tool, so its model can delegate work to specialised agents.
+Each id must reference an `agent/<id>.yaml` **also listed in [config.yaml](./config.md) `agents:`**. Mastra exposes each sub-agent as a callable delegation tool named `agent-<exportName>`, keyed by **camelCase export name**, not YAML id (`research-agent` → `agents: { researchAgent }` → tool `agent-researchAgent`). Steer delegation in prompts by that tool name.
 
-The sub-agent is keyed by its **camelCase export name**, not its YAML id — `research-agent`
-is emitted as `agents: { researchAgent }` (the same naming as `tools`). Mastra wraps it as a
-delegation tool named `agent-<exportName>` (here `agent-researchAgent`), so prompts that steer
-delegation should refer to that name, not the YAML id `research-agent`.
-
-Cycles — including an agent referencing itself — are allowed: Mastra delegates through a
-runtime tool call, so recursion is bounded by the agent's step limit rather than forbidden.
-When an agent sits on a cycle, its `agents` field is emitted as a thunk
-(`agents: () => ({ ... })`) so the circular bindings resolve lazily, and the export
-gets an explicit `: Agent` annotation to break the self-referential type inference:
+Cycles (including self-reference) are allowed — Mastra delegates via a runtime tool call, so recursion is bounded by the agent's step limit. On a cycle, `agents` is emitted as a thunk (`() => ({ ... })`) for lazy binding, and the export gets an explicit `: Agent` annotation to break self-referential type inference:
 
 ```typescript
 // agent/a.yaml: agents: [a]  →  src/mastra/agents/a.ts
