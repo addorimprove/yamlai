@@ -132,6 +132,7 @@ export function parseProject(rootDir: string): ParsedProject {
   // Sub-agent references, captured for every schema-valid agent (even ones that
   // later fail prompt/model resolution), keyed by agent id.
   const subAgentRefs = new Map<string, string[]>();
+  const agentWorkflowRefs = new Map<string, string[]>();
   const configAgentSet = new Set(config.agents);
 
   for (const agentId of config.agents) {
@@ -146,6 +147,7 @@ export function parseProject(rootDir: string): ParsedProject {
     }
     const agent = agentResult.data;
     subAgentRefs.set(agentId, agent.agents);
+    agentWorkflowRefs.set(agentId, agent.workflows);
 
     // instructions: `instructions` is a prompt id referencing prompt/<id>.md.
     const promptPath = `prompt/${agent.instructions}.md`;
@@ -205,7 +207,7 @@ export function parseProject(rootDir: string): ParsedProject {
       tools,
       subAgents: agent.agents.map((id) => ({ id, exportName: toExportName(id) })),
       lazyAgents: false, // set below once the full sub-agent graph is known
-      workflows: [], // populated in Phase C
+      workflows: agent.workflows.map((id) => ({ id, exportName: toExportName(id) })),
       lazyWorkflows: false, // set in Phase C
       memory: agent.memory,
     });
@@ -344,6 +346,42 @@ export function parseProject(rootDir: string): ParsedProject {
     });
   }
 
+  // Validate every attached workflow exists in config.workflows.
+  for (const [parentId, refs] of agentWorkflowRefs) {
+    for (const ref of new Set(refs)) {
+      if (!configWorkflowSet.has(ref)) {
+        addIssue(
+          `agent/${parentId}.yaml`,
+          `workflow not found: ${ref} (must be listed in config.yaml workflows)`,
+        );
+      }
+    }
+  }
+
+  // Agent⇄workflow cycle detection. Build one graph over both node kinds
+  // (namespaced a:/w: so an agent id and workflow id never collide): agents point
+  // to their sub-agents AND attached workflows; workflows point to their agent
+  // steps. An agent on a cycle here attaches its workflows lazily (off `mastra`)
+  // so no agent⇄workflow import cycle forms. (Conservative: any agent on a cycle
+  // with attachments is lazified — always safe, occasionally lazier than strictly
+  // necessary, mirroring how `lazyAgents` works for sub-agent cycles.)
+  const wfGraph = new Map<string, string[]>();
+  for (const agent of agents) {
+    wfGraph.set(`a:${agent.id}`, [
+      ...agent.subAgents.map((s) => `a:${s.id}`),
+      ...agent.workflows.map((w) => `w:${w.id}`),
+    ]);
+  }
+  for (const wf of workflows) {
+    wfGraph.set(`w:${wf.id}`, wf.agents.map((a) => `a:${a.id}`));
+  }
+  const wfCyclic = findCyclicNodes(wfGraph);
+  for (const agent of agents) {
+    if (agent.workflows.length > 0 && wfCyclic.has(`a:${agent.id}`)) {
+      agent.lazyWorkflows = true;
+    }
+  }
+
   // Distinct ids that normalise to the same camelCase export name would emit
   // duplicate identifiers in the generated TypeScript (e.g. `research-agent`
   // and `research_agent` both -> `researchAgent`, or a tool id colliding with
@@ -388,6 +426,9 @@ export function parseProject(rootDir: string): ParsedProject {
       ...agent.subAgents
         .filter((s) => s.id !== agent.id)
         .map((s) => ({ name: s.exportName, key: `agent:${s.id}` })),
+      ...(agent.lazyWorkflows
+        ? []
+        : agent.workflows.map((w) => ({ name: w.exportName, key: `workflow:${w.id}` }))),
     ]);
   }
 
