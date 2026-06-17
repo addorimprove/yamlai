@@ -1080,7 +1080,7 @@ Expected: succeeds; file count is higher than the previous 9 (now includes `src/
 pnpm gen:example /tmp/wf-out
 cd /tmp/wf-out && pnpm install && pnpm exec tsc --noEmit
 ```
-Expected: `tsc` exits 0. (Per the spec, step-to-step shape mismatches surface here, not at parse time. If `tsc` flags a mismatch in the example, fix the example YAML/tool — not the emitter.)
+Expected: `tsc` exits 0. (Per the spec, step-to-step shape mismatches surface here, not at parse time. If `tsc` flags a mismatch in the example, fix the example YAML/tool — not the emitter.) **Note:** `pnpm install` pulls from the npm registry — an install failure is a network/registry problem, **not** a codegen bug; re-run with registry access before judging the output.
 
 - [ ] **Step 7: Commit**
 
@@ -1113,13 +1113,18 @@ Create `/tmp/wf-spike/` with these files (mirrors what the emitter will produce 
 `/tmp/wf-spike/package.json`:
 ```json
 { "name": "wf-spike", "type": "module", "private": true,
-  "dependencies": { "@mastra/core": "1.42.0", "zod": "^4.4.3" } }
+  "dependencies": { "@mastra/core": "1.42.0", "zod": "^4.4.3" },
+  "devDependencies": { "tsx": "^4.19.0" } }
 ```
 
-`/tmp/wf-spike/src/agents/looper.ts` (the **lazy** form — note: NO import of the workflow):
+> `tsx` is a **dev dependency of the spike** so `node --import tsx` can resolve the loader from the
+> spike's own `node_modules` (the generated project has no `tsx`, and a bare `node --import tsx` with
+> no local/global tsx fails with `Cannot find package 'tsx'`).
+
+`/tmp/wf-spike/src/agents/looper.ts` (the **lazy** form — this mirrors exactly what `emit-agent.ts` produces for a `lazyWorkflows`-only agent: NO import of the workflow, and **NO `: Agent` annotation**. The `({ mastra }) => …` thunk never references `looper` itself, so there is no self-referential type to break — unlike the sub-agent-cycle case, which is the only thing that triggers the `: Agent` annotation in C3):
 ```ts
 import { Agent } from '@mastra/core/agent';
-export const looper: Agent = new Agent({
+export const looper = new Agent({
   id: 'looper',
   name: 'Looper',
   instructions: 'loop',
@@ -1445,6 +1450,10 @@ Add the `workflows` field after the `agents` field block (`emit-agent.ts:66`):
     if (agent.lazyWorkflows) {
       // Deduped by export name, in first-seen order. mastra.getWorkflow(id) avoids
       // importing the workflow module (breaks the agent⇄workflow import cycle).
+      // NOTE: do NOT extend the `export const … : Agent` annotation (the decl logic
+      // above) to cover lazyWorkflows — the thunk doesn't reference the agent's own
+      // binding, so there's no self-referential type to break. The annotation stays
+      // governed by `lazyAgents` only. (Confirmed by the C1 spike's no-annotation form.)
       const uniq = [...new Map(agent.workflows.map((w) => [w.exportName, w])).values()];
       const entries = uniq
         .map((w) => `${w.exportName}: mastra.getWorkflow(${JSON.stringify(w.id)})`)
@@ -1465,15 +1474,37 @@ Add the `workflows` field after the `agents` field block (`emit-agent.ts:66`):
 Run: `node --import tsx --test test/emit-agent-workflows.test.ts`
 Expected: PASS (4 tests).
 
-- [ ] **Step 5: Full suite + build**
+- [ ] **Step 5: Backfill the new required fields on pre-existing `ResolvedAgent` fixtures**
+
+This step now reads `agent.workflows` (it iterates `for (const wf of agent.workflows)`) and
+`agent.lazyWorkflows`. Two **pre-existing** hand-built `ResolvedAgent` literals predate the A3 field
+additions and will make `emitAgent` throw `TypeError: agent.workflows is not iterable` once this task
+lands — and nothing catches it earlier, because `tsconfig.json` excludes `test/` and `pnpm test` runs
+under tsx (no type-check). Add `workflows: [], lazyWorkflows: false` to **both** base literals:
+
+- `builder/test/emit-agent.test.ts` — `const BASE` (≈ line 14; the `lazyAgents: true` fixtures spread `...BASE`, so this one edit covers them).
+- `builder/test/emit-memory.test.ts` — `const BASE_AGENT` (≈ line 72).
+
+```ts
+  // …
+  lazyAgents: false,
+  workflows: [],          // NEW (Task A3 made this required on ResolvedAgent)
+  lazyWorkflows: false,   // NEW
+  memory: false,
+};
+```
+
+- [ ] **Step 6: Full suite + build**
 
 Run: `pnpm build && pnpm test`
-Expected: all pass.
+Expected: all pass. (Before Step 5's fixture backfill this would crash the legacy emit-agent /
+emit-memory tests with `agent.workflows is not iterable` — confirm green here.)
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add builder/src/codegen/emit-agent.ts builder/test/emit-agent-workflows.test.ts
+git add builder/src/codegen/emit-agent.ts builder/test/emit-agent-workflows.test.ts \
+        builder/test/emit-agent.test.ts builder/test/emit-memory.test.ts
 git commit -m "feat(workflows): emit attached workflows on agents (cycles allowed)"
 ```
 
@@ -1510,18 +1541,31 @@ grep -n "workflows:" /tmp/wf-out/src/mastra/agents/support-agent.ts
 ```
 Expected: a `workflows: ({ mastra }) => ({ compareAnswers: mastra.getWorkflow("compare-answers") })` line (no static workflow import in that file).
 
-- [ ] **Step 4: Typecheck + load the generated project end-to-end**
+- [ ] **Step 4: De-stale the `config.yaml` comment**
+
+`examples/config.yaml` introduced `workflows:` with the comment `# preview of roadmap #15 — ignored until the feature lands`. That is now false (the feature ships in this milestone). Update the trailing comment on the `workflows:` line to reflect reality, e.g.:
+
+```yaml
+workflows:                 # registered on the Mastra instance (workflow/<id>.yaml)
+  - research-flow          # sequential: research-agent -> rephrase(tool) -> support-agent
+  - compare-answers        # parallel:   [research-agent | support-agent] -> merge-answers(tool)
+```
+
+- [ ] **Step 5: Typecheck + load the generated project end-to-end**
 
 ```bash
-cd /tmp/wf-out && pnpm install && pnpm exec tsc --noEmit && node --import tsx -e "import('./src/mastra/index.ts').then(m => console.log('ok', m.mastra.getWorkflow('compare-answers').id))"
+cd /tmp/wf-out && pnpm install && pnpm exec tsc --noEmit
+# The generated project has no `tsx`; run the load check through a throwaway npx tsx
+# (proves no agent⇄workflow TDZ ReferenceError at module load — the whole point of the cyclic path).
+npx -y tsx -e "import('./src/mastra/index.ts').then(m => console.log('ok', m.mastra.getWorkflow('compare-answers').id))"
 cd "$OLDPWD"
 ```
-Expected: `tsc` exits 0; node prints `ok compare-answers` with no TDZ ReferenceError. (If this fails, the C1 spike fallback applies — escalate.)
+Expected: `tsc` exits 0; node prints `ok compare-answers` with no TDZ ReferenceError. (If this fails, the C1 spike fallback applies — escalate.) **Note:** `pnpm install` pulls from the npm registry — an install failure here is a network/registry problem, **not** a codegen bug; re-run with registry access before judging the output.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add examples/agent/support-agent.yaml
+git add examples/agent/support-agent.yaml examples/config.yaml
 git commit -m "docs(workflows): example agent attaches a workflow (cyclic)"
 ```
 
@@ -1576,6 +1620,7 @@ git commit -m "test(workflows): example generation regression"
 **Files:**
 - Create: `website/docs/<section>/workflow.md` (match the existing docs layout — inspect `website/docs/` first)
 - Modify: the roadmap/feature page that lists Workflows (#15) — move it to "Available now"
+- Modify: `website/docs/examples.md` — flip its existing **"Preview: workflows (roadmap #15)"** section from preview to shipped
 
 - [ ] **Step 1: Inspect docs layout**
 
@@ -1595,7 +1640,14 @@ Document, per the **docs-single-source-of-truth** rule (link, don't duplicate th
 
 - [ ] **Step 3: Move Workflows #15 to "Available now"** on the roadmap/status page found in Step 1.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Un-preview the `examples.md` workflows section**
+
+`website/docs/examples.md` currently carries a `## Preview: workflows (roadmap #15)` section wrapped in a `:::note Not generated yet` admonition (the `workflows:` block was also added to its rendered `config.yaml`). Now that the feature ships:
+- Remove the `:::note Not generated yet … :::` admonition (and the "preview"/"not a shipped feature" wording).
+- Fold the workflow files into the shipped walkthrough: add `tools/rephrase.ts`, `tools/merge-answers.ts`, and `workflow/` to the **Input** tree, and add `src/mastra/workflows/research-flow.ts` + `compare-answers.ts` (and the copied tools) to the **Output** tree, so input→output stays coherent.
+- Link to the new `workflow.md` reference page rather than restating its mapping (docs-single-source-of-truth).
+
+- [ ] **Step 5: Commit**
 
 ```bash
 git add website/docs
@@ -1628,7 +1680,7 @@ Expected: build clean; every test passes.
 - [ ] **Step 2: Example end-to-end**
 
 Run: `pnpm gen:example /tmp/wf-final && cd /tmp/wf-final && pnpm install && pnpm exec tsc --noEmit && cd "$OLDPWD"`
-Expected: generation + typecheck both succeed.
+Expected: generation + typecheck both succeed. **Note:** `pnpm install` needs the npm registry — an install failure is a network/registry problem, not a codegen bug.
 
 - [ ] **Step 3: Confirm the docs reflect shipped v1.** The spec status line (Task D4) reads
   `implemented (v1)` and attachment is in the "In" list. (No separate handoff file — the spec + this
