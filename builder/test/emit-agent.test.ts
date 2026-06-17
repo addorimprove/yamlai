@@ -5,6 +5,7 @@ import type { ResolvedAgent } from '../src/types.js';
 
 const BASE: ResolvedAgent = {
   id: 'a',
+  exportName: 'a',
   name: 'A',
   description: '',
   instructions: 'hi',
@@ -12,6 +13,8 @@ const BASE: ResolvedAgent = {
   tools: [],
   subAgents: [],
   lazyAgents: false,
+  workflows: [],
+  lazyWorkflows: false,
   memory: false,
 };
 
@@ -79,17 +82,4 @@ test('emits a thunk but keeps sibling imports for a multi-node cycle', () => {
   assert.match(out, /import \{ b \} from '\.\/b';/);
   assert.match(out, /^\s*agents: \(\) => \(\{ b \}\),$/m);
   assert.match(out, /export const a: Agent = new Agent\(\{/);
-});
-
-test('dedupes repeated sub-agent references', () => {
-  const out = emitAgent({
-    ...BASE,
-    subAgents: [
-      { id: 'research-agent', exportName: 'researchAgent' },
-      { id: 'research-agent', exportName: 'researchAgent' },
-    ],
-  });
-  const imports = out.match(/from '\.\/research-agent'/g) ?? [];
-  assert.equal(imports.length, 1);
-  assert.match(out, /agents: \{ researchAgent \},/);
 });

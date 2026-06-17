@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { ParsedProject } from '../types.js';
 import type { FileMap } from './types.js';
 import { emitAgent } from './emit-agent.js';
+import { emitWorkflow } from './emit-workflow.js';
 import { emitIndex } from './emit-mastra.js';
 import { emitMemory } from './emit-memory.js';
 import {
@@ -34,6 +35,25 @@ export function generateProject(project: ParsedProject, rootDir: string): FileMa
       const dest = `src/mastra/tools/${tool.id}.ts`;
       if (files[dest]) continue; // copy each tool once even if shared across agents
       files[dest] = readFileSync(join(rootDir, tool.filePath), 'utf8');
+    }
+  }
+
+  for (const wf of project.workflows) {
+    files[`src/mastra/workflows/${wf.id}.ts`] = emitWorkflow(wf);
+    for (const tool of wf.tools) {
+      const dest = `src/mastra/tools/${tool.id}.ts`;
+      if (files[dest]) continue; // already copied by an agent or another workflow
+      files[dest] = readFileSync(join(rootDir, tool.filePath), 'utf8');
+    }
+    for (const s of wf.stepFiles) {
+      const dest = `src/mastra/workflows/steps/${s.id}.ts`;
+      if (files[dest]) continue; // copy each step once even if shared across workflows
+      files[dest] = readFileSync(join(rootDir, s.filePath), 'utf8');
+    }
+    for (const c of wf.conditionFiles) {
+      const dest = `src/mastra/workflows/condition/${c.id}.ts`;
+      if (files[dest]) continue; // copy each condition once even if shared
+      files[dest] = readFileSync(join(rootDir, c.filePath), 'utf8');
     }
   }
 

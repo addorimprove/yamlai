@@ -1,50 +1,17 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { parse as parseYaml } from 'yaml';
-import { z } from 'zod';
-import { AgentSchema, ConfigSchema, ModelSchema } from './schemas.js';
+import { ConfigSchema, WorkflowSchema } from './schemas.js';
 import type { MemoryInput } from './schemas.js';
-import { ParseError, type ParseIssue } from './errors.js';
-import { toExportName } from './naming.js';
+import { ParseError, formatZodError, type ParseIssue } from './errors.js';
+import { invalidExportIdReason, toExportName } from './naming.js';
+import { findCyclicNodes } from './graph.js';
+import { readYaml } from './read.js';
+import { resolveAgent } from './resolve-agent.js';
+import { resolveWorkflow } from './resolve-workflow.js';
 import type {
   ParsedProject,
   ResolvedAgent,
   ResolvedMemory,
-  ResolvedModel,
-  ResolvedTool,
+  ResolvedWorkflow,
 } from './types.js';
-
-function formatZodError(err: z.ZodError): string {
-  return err.issues
-    .map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`)
-    .join('; ');
-}
-
-/** Returns the set of nodes that lie on a delegation cycle (including
- *  self-loops). Edges to nodes absent from the graph — unresolved/invalid
- *  references, reported elsewhere — are not followed. Cycles are allowed (Mastra
- *  exposes each sub-agent as a runtime tool, so recursion is bounded by the
- *  agent's step limit); these nodes only need their `agents` field emitted lazily
- *  to dodge ESM temporal-dead-zone / circular-import crashes at module load. */
-function findCyclicNodes(graph: Map<string, string[]>): Set<string> {
-  const cyclic = new Set<string>();
-  for (const start of graph.keys()) {
-    // Walk forward from `start`; if we ever reach `start` again it is on a cycle.
-    const seen = new Set<string>();
-    const stack = [...(graph.get(start) ?? [])];
-    while (stack.length > 0) {
-      const node = stack.pop() as string;
-      if (node === start) {
-        cyclic.add(start);
-        break;
-      }
-      if (seen.has(node) || !graph.has(node)) continue;
-      seen.add(node);
-      for (const next of graph.get(node) ?? []) stack.push(next);
-    }
-  }
-  return cyclic;
-}
 
 function resolveMemory(m: MemoryInput): ResolvedMemory {
   const out: ResolvedMemory = {};
@@ -73,45 +40,8 @@ export function parseProject(rootDir: string): ParsedProject {
   const addIssue = (file: string, message: string) =>
     issues.push({ file, message });
 
-  // Returns undefined when an issue has been recorded and this file should be skipped.
-  function readYaml(relPath: string): unknown {
-    const abs = join(rootDir, relPath);
-    if (!existsSync(abs)) {
-      addIssue(relPath, 'file not found');
-      return undefined;
-    }
-    let parsed: unknown;
-    try {
-      parsed = parseYaml(readFileSync(abs, 'utf8'));
-    } catch (err) {
-      addIssue(relPath, `invalid YAML: ${(err as Error).message}`);
-      return undefined;
-    }
-    if (parsed === null || parsed === undefined) {
-      addIssue(relPath, 'file is empty or contains only null');
-      return undefined;
-    }
-    return parsed;
-  }
-
-  // Reads a raw text file (e.g. a prompt .md). Returns undefined (and records an
-  // issue) when the file is missing or blank.
-  function readText(relPath: string): string | undefined {
-    const abs = join(rootDir, relPath);
-    if (!existsSync(abs)) {
-      addIssue(relPath, 'file not found');
-      return undefined;
-    }
-    const content = readFileSync(abs, 'utf8');
-    if (content.trim() === '') {
-      addIssue(relPath, 'file is empty');
-      return undefined;
-    }
-    return content;
-  }
-
   // 1. config.yaml — fatal if missing/invalid (nothing else is reachable).
-  const rawConfig = readYaml('config.yaml');
+  const rawConfig = readYaml(rootDir, 'config.yaml', addIssue);
   if (rawConfig === undefined) throw new ParseError(issues);
 
   const configResult = ConfigSchema.safeParse(rawConfig);
@@ -121,87 +51,55 @@ export function parseProject(rootDir: string): ParsedProject {
   }
   const config = configResult.data;
 
-  // 2-5. Resolve each agent (continue past errors to collect them all).
+  // A repeated id in config.agents/config.workflows would emit duplicate imports
+  // and a duplicate object key in the generated index.ts — a `tsc` failure in the
+  // generated project rather than a clear error here. Reject it up front.
+  const reportDuplicates = (field: string, ids: string[]): void => {
+    const seen = new Set<string>();
+    const dupes = new Set<string>();
+    for (const id of ids) {
+      if (seen.has(id)) dupes.add(id);
+      seen.add(id);
+    }
+    for (const id of [...dupes].sort()) {
+      addIssue('config.yaml', `duplicate ${field}: \`${id}\` is listed more than once`);
+    }
+  };
+  reportDuplicates('agent', config.agents);
+  reportDuplicates('workflow', config.workflows);
+
+  // An id whose camelCase form isn't a legal, non-reserved JS identifier (leading
+  // digit, separators-only, reserved word) would emit uncompilable imports/exports.
+  // Reject it here rather than produce code that fails `tsc`.
+  const reportInvalidIds = (field: string, ids: string[]): void => {
+    for (const id of ids) {
+      const reason = invalidExportIdReason(id);
+      if (reason) addIssue('config.yaml', `${field} ${reason}`);
+    }
+  };
+  reportInvalidIds('agent', config.agents);
+  reportInvalidIds('workflow', config.workflows);
+
+  // 2. Resolve each agent (continue past errors to collect them all).
   const agents: ResolvedAgent[] = [];
 
   // Sub-agent references, captured for every schema-valid agent (even ones that
   // later fail prompt/model resolution), keyed by agent id.
   const subAgentRefs = new Map<string, string[]>();
+  const agentWorkflowRefs = new Map<string, string[]>();
   const configAgentSet = new Set(config.agents);
 
+  const hasMemoryConfig = config.memory !== undefined;
   for (const agentId of config.agents) {
-    const agentPath = `agent/${agentId}.yaml`;
-    const rawAgent = readYaml(agentPath);
-    if (rawAgent === undefined) continue;
-
-    const agentResult = AgentSchema.safeParse(rawAgent);
-    if (!agentResult.success) {
-      addIssue(agentPath, formatZodError(agentResult.error));
-      continue;
-    }
-    const agent = agentResult.data;
-    subAgentRefs.set(agentId, agent.agents);
-
-    // instructions: `instructions` is a prompt id referencing prompt/<id>.md.
-    const promptPath = `prompt/${agent.instructions}.md`;
-    const promptContent = readText(promptPath);
-    const instructions =
-      promptContent !== undefined ? promptContent.trimEnd() : undefined;
-
-    // model
-    const modelPath = `model/${agent.model}.yaml`;
-    const rawModel = readYaml(modelPath);
-    let resolvedModel: ResolvedModel | undefined;
-    if (rawModel !== undefined) {
-      const modelResult = ModelSchema.safeParse(rawModel);
-      if (!modelResult.success) {
-        addIssue(modelPath, formatZodError(modelResult.error));
-      } else {
-        const m = modelResult.data;
-        resolvedModel = {
-          id: agent.model,
-          provider: m.provider,
-          model: m.model,
-          routerString: `${m.provider}/${m.model}`,
-          temperature: m.temperature,
-          maxTokens: m.max_tokens,
-        };
-      }
-    }
-
-    // tools
-    const tools: ResolvedTool[] = [];
-    for (const toolId of agent.tools) {
-      const toolPath = `tools/${toolId}.ts`;
-      if (!existsSync(join(rootDir, toolPath))) {
-        addIssue(agentPath, `tool not found: ${toolPath}`);
-        continue;
-      }
-      tools.push({
-        id: toolId,
-        filePath: toolPath,
-        exportName: toExportName(toolId),
-      });
-    }
-
-    // Only emit a fully-resolved agent; prompt/model issues are already recorded.
-    if (instructions === undefined || !resolvedModel) continue;
-
-    if (agent.memory && config.memory === undefined) {
-      addIssue(agentPath, 'memory: true but config.yaml has no `memory:` block');
-    }
-
-    agents.push({
-      id: agentId,
-      name: agent.name,
-      description: agent.description,
-      instructions,
-      model: resolvedModel,
-      tools,
-      subAgents: agent.agents.map((id) => ({ id, exportName: toExportName(id) })),
-      lazyAgents: false, // set below once the full sub-agent graph is known
-      memory: agent.memory,
-    });
+    // Per-agent resolution (prompt/model/tools) lives in its own module; the
+    // parser keeps the cross-agent passes (refs, cycles, collisions) below.
+    const res = resolveAgent(agentId, { rootDir, hasMemoryConfig, addIssue });
+    if (!res) continue;
+    // Captured for every schema-valid agent, even ones that fail prompt/model
+    // resolution, so their references are still validated and graphed.
+    subAgentRefs.set(agentId, res.subAgentRefs);
+    agentWorkflowRefs.set(agentId, res.workflowRefs);
+    if (res.agent) agents.push(res.agent);
   }
 
   const memoryUsed = config.memory !== undefined || agents.some((a) => a.memory);
@@ -226,6 +124,64 @@ export function parseProject(rootDir: string): ParsedProject {
   const cyclicNodes = findCyclicNodes(subAgentRefs);
   for (const agent of agents) {
     if (cyclicNodes.has(agent.id)) agent.lazyAgents = true;
+  }
+
+  // Workflows ---------------------------------------------------------------
+  // Resolve each declared workflow; collect every problem (don't stop at first).
+  const configWorkflowSet = new Set(config.workflows);
+  const workflows: ResolvedWorkflow[] = [];
+
+  for (const wfId of config.workflows) {
+    const wfPath = `workflow/${wfId}.yaml`;
+    const rawWf = readYaml(rootDir, wfPath, addIssue);
+    if (rawWf === undefined) continue;
+
+    const wfResult = WorkflowSchema.safeParse(rawWf);
+    if (!wfResult.success) {
+      addIssue(wfPath, formatZodError(wfResult.error));
+      continue;
+    }
+
+    // Semantic resolution (step shapes, ref lookup, loop rules) lives in its own
+    // module; the parser only handles file IO + schema validation.
+    const resolved = resolveWorkflow(wfResult.data, wfId, { rootDir, configAgentSet, addIssue });
+    if (resolved) workflows.push(resolved);
+  }
+
+  // Validate every attached workflow exists in config.workflows.
+  for (const [parentId, refs] of agentWorkflowRefs) {
+    for (const ref of new Set(refs)) {
+      if (!configWorkflowSet.has(ref)) {
+        addIssue(
+          `agent/${parentId}.yaml`,
+          `workflow not found: ${ref} (must be listed in config.yaml workflows)`,
+        );
+      }
+    }
+  }
+
+  // Agent⇄workflow cycle detection. Build one graph over both node kinds
+  // (namespaced a:/w: so an agent id and workflow id never collide): agents point
+  // to their sub-agents AND attached workflows; workflows point to their agent
+  // steps. An agent on a cycle here attaches its workflows lazily (off `mastra`)
+  // so no agent⇄workflow import cycle forms. (Conservative: any agent on a cycle
+  // with attachments is lazified — always safe, occasionally lazier than strictly
+  // necessary, mirroring how `lazyAgents` works for sub-agent cycles.)
+  const wfGraph = new Map<string, string[]>();
+  for (const agent of agents) {
+    wfGraph.set(`a:${agent.id}`, [
+      ...agent.subAgents.map((s) => `a:${s.id}`),
+      ...agent.workflows.map((w) => `w:${w.id}`),
+    ]);
+  }
+  for (const wf of workflows) {
+    wfGraph.set(`w:${wf.id}`, wf.agents.map((a) => `a:${a.id}`));
+  }
+  const wfCyclic = findCyclicNodes(wfGraph);
+  for (const agent of agents) {
+    if (agent.workflows.length > 0 && wfCyclic.has(`a:${agent.id}`)) {
+      agent.lazyWorkflows = true;
+    }
   }
 
   // Distinct ids that normalise to the same camelCase export name would emit
@@ -253,11 +209,11 @@ export function parseProject(rootDir: string): ParsedProject {
       }
     }
   };
-  // Project scope: every declared agent is a top-level import in index.ts.
-  reportCollisions(
-    'config.yaml',
-    config.agents.map((id) => ({ name: toExportName(id), key: `agent:${id}` })),
-  );
+  // Project scope: every declared agent AND workflow is a top-level import in index.ts.
+  reportCollisions('config.yaml', [
+    ...config.agents.map((id) => ({ name: toExportName(id), key: `agent:${id}` })),
+    ...config.workflows.map((id) => ({ name: toExportName(id), key: `workflow:${id}` })),
+  ]);
   // Module scope: an agent file's own export, its tool imports, its sub-agent
   // imports, and the reserved imports the emitter always/conditionally adds
   // (`Agent` from @mastra/core, `memory` from utils) all share one identifier
@@ -267,11 +223,29 @@ export function parseProject(rootDir: string): ParsedProject {
     reportCollisions(`agent/${agent.id}.yaml`, [
       { name: 'Agent', key: 'reserved:Agent' },
       ...(agent.memory ? [{ name: 'memory', key: 'reserved:memory' }] : []),
-      { name: toExportName(agent.id), key: `agent:${agent.id}` },
+      { name: agent.exportName, key: `agent:${agent.id}` },
       ...agent.tools.map((t) => ({ name: t.exportName, key: `tool:${t.id}` })),
       ...agent.subAgents
         .filter((s) => s.id !== agent.id)
         .map((s) => ({ name: s.exportName, key: `agent:${s.id}` })),
+      ...(agent.lazyWorkflows
+        ? []
+        : agent.workflows.map((w) => ({ name: w.exportName, key: `workflow:${w.id}` }))),
+    ]);
+  }
+
+  // Module scope for each workflow file: its own export, its agent/tool imports,
+  // and the reserved imports the emitter always adds.
+  for (const wf of workflows) {
+    reportCollisions(`workflow/${wf.id}.yaml`, [
+      { name: 'createWorkflow', key: 'reserved:createWorkflow' },
+      { name: 'createStep', key: 'reserved:createStep' },
+      { name: 'z', key: 'reserved:z' },
+      { name: wf.exportName, key: `workflow:${wf.id}` },
+      ...wf.agents.map((a) => ({ name: a.exportName, key: `agent:${a.id}` })),
+      ...wf.tools.map((t) => ({ name: t.exportName, key: `tool:${t.id}` })),
+      ...wf.stepFiles.map((s) => ({ name: s.exportName, key: `step:${s.id}` })),
+      ...wf.conditionFiles.map((c) => ({ name: c.exportName, key: `condition:${c.id}` })),
     ]);
   }
 
@@ -288,5 +262,6 @@ export function parseProject(rootDir: string): ParsedProject {
     storage: config.storage,
     memory,
     agents,
+    workflows,
   };
 }

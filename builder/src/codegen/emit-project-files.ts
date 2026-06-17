@@ -37,6 +37,11 @@ export function emitTsconfig(): string {
       moduleResolution: 'bundler',
       esModuleInterop: true,
       forceConsistentCasingInFileNames: true,
+      // Full strict, incl. strictFunctionTypes. @mastra/core >=1.43 types
+      // `createStep(agent)` and `.then()`/`.parallel()` so valid agent-step
+      // chains compile under strict AND adjacent step IO mismatches are caught
+      // at build time (`tsc`), not just at runtime. (1.42 required disabling
+      // strictFunctionTypes — see VERSIONS, pinned to ^1.43.)
       strict: true,
       skipLibCheck: true,
       noEmit: true,

@@ -78,6 +78,8 @@ const BASE_AGENT: ResolvedAgent = {
   tools: [],
   subAgents: [],
   lazyAgents: false,
+  workflows: [],
+  lazyWorkflows: false,
   memory: false,
 };
 

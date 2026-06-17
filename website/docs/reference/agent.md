@@ -27,8 +27,9 @@ agents:
 | `model` | string | Yes | — | A **model id** → [model/&lt;id&gt;.yaml](./model.md). |
 | `tools` | string[] | No | `[]` | **Tool ids** → [tools/&lt;id&gt;.ts](./tools.md). |
 | `agents` | string[] | No | `[]` | **Sub-agent ids** → [agent/&lt;id&gt;.yaml](./agent.md), and must be in [config.yaml](./config.md) `agents:`. |
+| `workflows` | string[] | No | `[]` | **Workflow ids** the agent can invoke → [workflow/&lt;id&gt;.yaml](./workflow.md), and must be in [config.yaml](./config.md) `workflows:`. |
 
-`instructions`, `model`, and `tools` hold **ids**, not inline values — each must resolve to an existing file or codegen fails.
+`instructions`, `model`, and `tools` hold **ids**, not inline values — each must resolve to an existing file (and a tool file must export the camelCased id); `validate` catches a missing or mismatched reference.
 
 ## Generates `src/mastra/agents/support-agent.ts`
 
@@ -78,3 +79,19 @@ export const a: Agent = new Agent({
   agents: () => ({ a }),
 });
 ```
+
+## Workflows (`workflows`)
+
+Attach workflows so the agent's model can invoke them as tools:
+
+```yaml
+workflows:
+  - compare-answers          # → workflow/compare-answers.yaml (must be in config.yaml)
+```
+
+Each id must reference a [workflow/&lt;id&gt;.yaml](./workflow.md) that is **also listed
+in [config.yaml](./config.md) `workflows:`** — `validate` catches a missing or
+unregistered reference. Agent⇄workflow cycles are allowed: when an attached workflow runs
+the attaching agent, the `workflows` field is emitted **lazily off the Mastra instance**
+rather than as a static import. For that generated shape (static object vs. lazy thunk),
+see [workflow reference → Attaching workflows to an agent](./workflow.md#attaching-workflows-to-an-agent-agentworkflows).

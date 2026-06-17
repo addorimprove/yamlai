@@ -3,7 +3,7 @@
   "version": "0.1.1",
   "type": "module",
   "bin": {
-    "yamlai": "dist/scripts/generate.js"
+    "yamlai": "dist/scripts/cli.js"
   },
   "files": [
     "dist"
@@ -19,7 +19,8 @@
     "prepublishOnly": "tsc",
     "parse:example": "tsx scripts/parse-example.ts",
     "gen:example": "tsx scripts/generate-example.ts",
-    "gen": "tsx scripts/generate.ts",
+    "gen": "tsx scripts/cli.ts generate",
+    "validate": "tsx scripts/cli.ts validate",
     "test": "node --import tsx --test test/*.test.ts"
   },
   "dependencies": {

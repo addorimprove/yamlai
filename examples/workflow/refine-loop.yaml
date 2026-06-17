@@ -1,0 +1,12 @@
+# Loop demo (single-leaf body). Repeats the `refine` step until the condition
+# `good-enough` returns true, or 5 iterations — whichever comes first.
+description: Refine a draft until it scores well enough (or 5 tries).
+
+input:  { text: string, score: number }
+output: { text: string, score: number }
+
+steps:
+  - loop:
+      until: good-enough        # workflow/condition/good-enough.ts  ->  .dountil
+      step: refine              # body = one leaf (workflow/steps/refine.ts)
+      max_iterations: 5

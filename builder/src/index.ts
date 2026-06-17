@@ -9,7 +9,12 @@ export type {
   ResolvedWorkingMemory,
   ResolvedModel,
   ResolvedSubAgent,
+  ResolvedFileRef,
   ResolvedTool,
+  ResolvedWorkflow,
+  ResolvedWorkflowStep,
+  ResolvedStepRef,
+  ResolvedWorkflowRef,
 } from './types.js';
 export { generateProject } from './codegen/generate.js';
 export { writeProject, type WriteOptions } from './codegen/write.js';

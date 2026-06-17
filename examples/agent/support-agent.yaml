@@ -7,3 +7,8 @@ tools:
   - echo-tool
 agents:
   - research-agent
+# Attach a workflow the agent can invoke. `compare-answers` runs `support-agent`
+# itself (one of its parallel steps), so this is an agent⇄workflow cycle — emitted
+# lazily via `mastra.getWorkflow` (see workflows design, "cycles allowed").
+workflows:
+  - compare-answers
