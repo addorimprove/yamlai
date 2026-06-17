@@ -30,6 +30,9 @@ name: my-mastra-app
 agents:
   - support-agent
   - research-agent
+workflows:                 # preview of roadmap #15 — ignored until the feature lands
+  - research-flow          # sequential: research-agent -> rephrase(tool) -> support-agent
+  - compare-answers        # parallel:   [research-agent | support-agent] -> merge-answers(tool)
 logger:
   level: info
 storage:
@@ -215,4 +218,55 @@ cd my-mastra-app
 npm install
 export OPENAI_API_KEY=sk-...
 npm run dev
+```
+
+## Preview: workflows (roadmap #15)
+
+:::note Not generated yet
+The `workflows:` key in `config.yaml` and the files below are a **preview of the
+planned `workflow/` resource** ([roadmap #15](https://mastra.ai/docs/workflows/overview)).
+The generator ignores them today — they show the intended YAML shape, not a
+shipped feature. The glue tools (`rephrase`, `merge-answers`) are ordinary
+[tools](./reference/tools.md): in the planned design, tools double as the
+shaping/merge units between steps.
+:::
+
+The preview adds these files to `examples/`:
+
+```text
+examples/
+├── tools/
+│   ├── rephrase.ts          # glue: { text } -> { prompt }
+│   └── merge-answers.ts     # merge: { 'research-agent': {text}, 'support-agent': {text} } -> { comparison }
+└── workflow/
+    ├── research-flow.yaml    # sequential
+    └── compare-answers.yaml  # parallel fan-out + merge
+```
+
+```yaml title="workflow/research-flow.yaml"
+# id = filename (research-flow). Steps run in order via .then().
+name: Research Flow
+description: Research a question, then have the support agent answer from the notes.
+
+input:  { prompt: string }     # matches an agent step's input shape directly
+output: { text: string }       # matches an agent step's output shape directly
+
+steps:
+  - agent: research-agent      # { prompt } -> { text }
+  - tool:  rephrase            # { text }  -> { prompt }   (glue tool, tools/rephrase.ts)
+  - agent: support-agent       # { prompt } -> { text }
+```
+
+```yaml title="workflow/compare-answers.yaml"
+name: Compare Answers
+description: Ask the research and support agents the same question in parallel, then merge.
+
+input:  { prompt: string }     # → z.object({ prompt: z.string() })
+output: { comparison: string }
+
+steps:
+  - parallel:                  # both agents run at once on the same { prompt }
+      - agent: research-agent
+      - agent: support-agent
+  - tool: merge-answers        # { 'research-agent': {text}, 'support-agent': {text} } -> { comparison }
 ```

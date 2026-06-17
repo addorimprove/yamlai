@@ -2,6 +2,9 @@ name: my-mastra-app
 agents:
   - support-agent
   - research-agent
+workflows:                 # preview of roadmap #15 — ignored until the feature lands
+  - research-flow          # sequential: research-agent -> rephrase(tool) -> support-agent
+  - compare-answers        # parallel:   [research-agent | support-agent] -> merge-answers(tool)
 logger:
   level: info
 storage:

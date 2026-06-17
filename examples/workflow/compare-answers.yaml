@@ -1,0 +1,12 @@
+# Preview of the planned `workflow/` resource (roadmap #15) — parallel fan-out + merge.
+name: Compare Answers
+description: Ask the research and support agents the same question in parallel, then merge.
+
+input:  { prompt: string }     # → z.object({ prompt: z.string() })
+output: { comparison: string }
+
+steps:
+  - parallel:                  # both agents run at once on the same { prompt }
+      - agent: research-agent
+      - agent: support-agent
+  - tool: merge-answers        # { 'research-agent': {text}, 'support-agent': {text} } -> { comparison }

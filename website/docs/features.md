@@ -55,7 +55,7 @@ Planned YAML, roughly in priority order. **Tier:** A = declarative/low-effort ·
 | 12 | Run limits | agent `max_steps`, `stop_when` | declarative | A |
 | 13 | Metadata | agent `metadata: { team: support }` | declarative | A |
 | 14 | Observability / tracing | `config.yaml` → `observability` | declarative | A |
-| 15 | Workflows | `workflow/<id>.ts` (`createWorkflow`) + agent `workflows: [<id>]` | author-as-code | B |
+| 15 | Workflows | `workflow/<id>.yaml` (declarative graph: agent/tool steps, sequential + parallel; tools as glue) | declarative | A |
 | 16 | Structured output | `schema/<id>.ts` (Zod) + agent `output: <id>` | author-as-code | B |
 | 17 | MCP tool servers | `mcp/<id>.yaml` (`command`/`url`) | declarative | B |
 | 18 | Custom processors / scorers | `processor/<id>.ts`, `scorer/<id>.ts` | author-as-code | B |
