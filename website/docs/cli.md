@@ -37,7 +37,7 @@ errors), but emits no files.
 | Outcome | Text output | `--json` output | Exit |
 |---|---|---|---|
 | Valid | `✓ valid: N agents, M workflows` (stdout) | `{"ok":true,"issues":[]}` | `0` |
-| Validation errors | aggregated `file: message` lines (stderr) | `{"ok":false,"issues":[{"file","message"}]}` | `1` |
+| Validation errors | aggregated `file: message` lines (stderr) | `{"ok":false,"issues":[{"file":"...","message":"..."}]}` | `1` |
 | Unexpected error | error message (stderr) | `{"ok":false,"error":"..."}` | `2` |
 
 ## Arguments
