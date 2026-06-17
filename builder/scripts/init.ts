@@ -33,9 +33,12 @@ A YAML Agent Builder project scaffolded with \`yamlai init\`.
 
 ## Generate the Mastra app
 
+Run these from inside this directory. The generated Mastra app must live outside
+the project, so it is written to a sibling folder.
+
 \`\`\`bash
-yamlai validate .      # parse-only check
-yamlai generate .      # emit a Mastra project to ./${name}
+yamlai validate .                   # parse-only check
+yamlai generate . ../${name}-build  # emit the Mastra app to ../${name}-build
 \`\`\`
 
 ## Configure secrets

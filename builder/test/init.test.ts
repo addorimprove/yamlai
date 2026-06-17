@@ -1,10 +1,11 @@
 // builder/test/init.test.ts
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runInit } from '../scripts/init.js';
+import { runGenerate } from '../scripts/generate.js';
 import { parseProject } from '../src/index.js';
 
 function tempDir(): string {
@@ -58,4 +59,14 @@ test('runInit refuses a non-empty target without --force, replaces with it', () 
   runInit([target, '--force']);
   assert.ok(!existsSync(join(target, 'stale.txt')));
   assert.ok(existsSync(join(target, 'config.yaml')));
+});
+
+test('the scaffold generates a Mastra project (init -> generate handoff)', () => {
+  const base = tempDir();
+  const src = join(base, 'mastra-app');
+  const out = join(base, 'mastra-app-build');
+  runInit([src]);
+  runGenerate([src, out]);
+  assert.ok(existsSync(out));
+  assert.ok(readdirSync(out).length > 0);
 });

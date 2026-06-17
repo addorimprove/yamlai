@@ -32,11 +32,13 @@ yamlai init [dir] [--force]
 
 It writes a full working project — agents, models, prompts, tools, and four workflows (sequential, parallel, and two loop forms) — plus a `README.md` and a `.env.example`. The project's `config.yaml` `name` is set to the target directory's basename.
 
+The generated app is written to a separate directory — it cannot overlap the input.
+
 Next steps:
 
 ```bash
-yamlai validate mastra-app   # parse-only check — see validate below
-yamlai generate mastra-app   # emit the Mastra project — see generate above
+yamlai validate mastra-app                   # parse-only check
+yamlai generate mastra-app mastra-app-build  # emit the Mastra app to ./mastra-app-build
 ```
 
 ## `validate`
