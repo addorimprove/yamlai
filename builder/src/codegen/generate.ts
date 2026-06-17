@@ -50,6 +50,11 @@ export function generateProject(project: ParsedProject, rootDir: string): FileMa
       if (files[dest]) continue; // copy each step once even if shared across workflows
       files[dest] = readFileSync(join(rootDir, s.filePath), 'utf8');
     }
+    for (const c of wf.conditionFiles) {
+      const dest = `src/mastra/workflows/condition/${c.id}.ts`;
+      if (files[dest]) continue; // copy each condition once even if shared
+      files[dest] = readFileSync(join(rootDir, c.filePath), 'utf8');
+    }
   }
 
   return files;

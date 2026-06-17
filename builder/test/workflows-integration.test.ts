@@ -75,3 +75,17 @@ test('copies a referenced step verbatim into workflows/steps/', () => {
   assert.ok(files['src/mastra/workflows/steps/rephrase.ts'], 'step copied');
   assert.match(files['src/mastra/workflows/w.ts'], /import \{ rephrase \} from '\.\/steps\/rephrase';/);
 });
+
+test('copies a referenced condition verbatim into workflows/condition/', () => {
+  const dir = makeProject({
+    'config.yaml': 'name: x\nagents: [a]\nworkflows: [w]\n',
+    'agent/a.yaml': 'name: A\ninstructions: p\nmodel: m\n',
+    'prompt/p.md': 'hi\n',
+    'model/m.yaml': 'provider: openai\nmodel: gpt-5-mini\n',
+    'condition/good-enough.ts': 'export const goodEnough = async () => true;\n',
+    'workflow/w.yaml': 'steps:\n  - loop:\n      until: good-enough\n      agent: a\n',
+  });
+  const files = generateProject(parseProject(dir), dir);
+  assert.ok(files['src/mastra/workflows/condition/good-enough.ts'], 'condition copied');
+  assert.match(files['src/mastra/workflows/w.ts'], /import \{ goodEnough \} from '\.\/condition\/good-enough';/);
+});
