@@ -19,6 +19,26 @@ npx @addorimprove/yamlai ./my-project
 npx @addorimprove/yamlai ./my-project ./out --force
 ```
 
+## `init`
+
+Scaffold a complete YAML Agent Builder project to start from.
+
+```bash
+yamlai init [dir] [--force]
+```
+
+- `dir` — target directory. Defaults to `./mastra-app`.
+- `--force` — overwrite a non-empty target directory.
+
+It writes a full working project — agents, models, prompts, tools, and four workflows (sequential, parallel, and two loop forms) — plus a `README.md` and a `.env.example`. The project's `config.yaml` `name` is set to the target directory's basename.
+
+Next steps:
+
+```bash
+yamlai validate mastra-app   # parse-only check — see validate below
+yamlai generate mastra-app   # emit the Mastra project — see generate above
+```
+
 ## `validate`
 
 Check that a project is well-formed without generating any code. Useful in CI.
