@@ -1,12 +1,17 @@
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
-export interface ResolvedTool {
+/** A reference to a source file copied verbatim into the generated project —
+ *  a tool, a custom step, or a loop-condition predicate. */
+export interface ResolvedFileRef {
   id: string;
   /** Path relative to rootDir, e.g. "tools/echo-tool.ts". */
   filePath: string;
   /** camelCase export variable name, e.g. "echoTool". */
   exportName: string;
 }
+
+/** A tool referenced by an agent or workflow. */
+export type ResolvedTool = ResolvedFileRef;
 
 export interface ResolvedModel {
   id: string;
@@ -75,7 +80,7 @@ export interface ResolvedLoop {
   loopKind: 'dountil' | 'dowhile' | 'foreach';
   body: ResolvedLoopBody;
   /** Predicate file for dountil/dowhile; absent for foreach and pure-count loops. */
-  condition?: ResolvedTool;
+  condition?: ResolvedFileRef;
   /** Iteration guard for dountil/dowhile/pure-count. */
   maxIterations?: number;
   /** Parallelism for foreach. */
@@ -107,13 +112,15 @@ export interface ResolvedWorkflow {
   /** Distinct tools referenced anywhere in this workflow, in first-seen order (for imports + copy). */
   tools: ResolvedTool[];
   /** Distinct custom steps referenced in this workflow, first-seen order (for imports + verbatim copy). */
-  stepFiles: ResolvedTool[];
+  stepFiles: ResolvedFileRef[];
   /** Distinct condition predicates referenced by loops, first-seen order (imports + verbatim copy). */
-  conditionFiles: ResolvedTool[];
+  conditionFiles: ResolvedFileRef[];
 }
 
 export interface ResolvedAgent {
   id: string;
+  /** camelCase export variable name, e.g. "supportAgent". */
+  exportName: string;
   name: string;
   description: string;
   instructions: string;

@@ -9,6 +9,7 @@ export type {
   ResolvedWorkingMemory,
   ResolvedModel,
   ResolvedSubAgent,
+  ResolvedFileRef,
   ResolvedTool,
   ResolvedWorkflow,
   ResolvedWorkflowStep,

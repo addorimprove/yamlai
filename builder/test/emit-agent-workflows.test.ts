@@ -5,7 +5,7 @@ import { emitAgent } from '../src/codegen/emit-agent.js';
 import type { ResolvedAgent } from '../src/types.js';
 
 const BASE: ResolvedAgent = {
-  id: 'worker', name: 'W', description: '', instructions: 'hi',
+  id: 'worker', exportName: 'worker', name: 'W', description: '', instructions: 'hi',
   model: { id: 'm', provider: 'openai', model: 'gpt-5-mini', routerString: 'openai/gpt-5-mini' },
   tools: [], subAgents: [], lazyAgents: false, workflows: [], lazyWorkflows: false, memory: false,
 };
@@ -28,16 +28,4 @@ test('cyclic attachment: no import, mastra.getWorkflow thunk keyed by export nam
   });
   assert.doesNotMatch(out, /import \{ loopFlow \} from/);
   assert.match(out, /workflows: \(\{ mastra \}\) => \(\{ loopFlow: mastra!\.getWorkflow\("loopFlow"\) \}\),/);
-});
-
-test('dedupes repeated attached-workflow references', () => {
-  const out = emitAgent({
-    ...BASE,
-    workflows: [
-      { id: 'research-flow', exportName: 'researchFlow' },
-      { id: 'research-flow', exportName: 'researchFlow' },
-    ],
-  });
-  assert.equal((out.match(/from '\.\.\/workflows\/research-flow'/g) ?? []).length, 1);
-  assert.match(out, /workflows: \{ researchFlow \},/);
 });

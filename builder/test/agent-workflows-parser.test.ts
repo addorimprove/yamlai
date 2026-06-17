@@ -35,6 +35,18 @@ test('resolves agent.workflows into ResolvedWorkflowRef and marks acyclic as not
   assert.equal(worker.lazyWorkflows, false);
 });
 
+test('dedupes repeated attached-workflow references by id', () => {
+  const dir = makeProject({
+    ...COMMON,
+    'config.yaml': 'name: x\nagents: [worker, support-agent]\nworkflows: [flow]\n',
+    'agent/worker.yaml': 'name: W\ninstructions: p\nmodel: m\nworkflows: [flow, flow]\n',
+    'agent/support-agent.yaml': 'name: S\ninstructions: p\nmodel: m\n',
+    'workflow/flow.yaml': 'steps:\n  - agent: support-agent\n',
+  });
+  const worker = parseProject(dir).agents.find((a) => a.id === 'worker')!;
+  assert.deepEqual(worker.workflows, [{ id: 'flow', exportName: 'flow' }]);
+});
+
 test('flags an agent on an agent->workflow->agent cycle as lazyWorkflows', () => {
   // worker attaches flow; flow steps back into worker -> cycle.
   const dir = makeProject({

@@ -3,21 +3,18 @@ import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { z } from 'zod';
 import { AgentSchema, ConfigSchema, ModelSchema, WorkflowSchema } from './schemas.js';
-import { compileZodObject } from './zod-compile.js';
 import type { MemoryInput } from './schemas.js';
 import { ParseError, type ParseIssue } from './errors.js';
 import { toExportName } from './naming.js';
+import { findCyclicNodes } from './graph.js';
+import { resolveWorkflow } from './resolve-workflow.js';
 import type {
   ParsedProject,
   ResolvedAgent,
-  ResolvedLoopBody,
   ResolvedMemory,
   ResolvedModel,
-  ResolvedStepRef,
   ResolvedTool,
   ResolvedWorkflow,
-  ResolvedWorkflowRef,
-  ResolvedWorkflowStep,
 } from './types.js';
 
 function formatZodError(err: z.ZodError): string {
@@ -26,30 +23,14 @@ function formatZodError(err: z.ZodError): string {
     .join('; ');
 }
 
-/** Returns the set of nodes that lie on a delegation cycle (including
- *  self-loops). Edges to nodes absent from the graph — unresolved/invalid
- *  references, reported elsewhere — are not followed. Cycles are allowed (Mastra
- *  exposes each sub-agent as a runtime tool, so recursion is bounded by the
- *  agent's step limit); these nodes only need their `agents` field emitted lazily
- *  to dodge ESM temporal-dead-zone / circular-import crashes at module load. */
-function findCyclicNodes(graph: Map<string, string[]>): Set<string> {
-  const cyclic = new Set<string>();
-  for (const start of graph.keys()) {
-    // Walk forward from `start`; if we ever reach `start` again it is on a cycle.
-    const seen = new Set<string>();
-    const stack = [...(graph.get(start) ?? [])];
-    while (stack.length > 0) {
-      const node = stack.pop() as string;
-      if (node === start) {
-        cyclic.add(start);
-        break;
-      }
-      if (seen.has(node) || !graph.has(node)) continue;
-      seen.add(node);
-      for (const next of graph.get(node) ?? []) stack.push(next);
-    }
-  }
-  return cyclic;
+/** Dedupe ref objects by `id`, preserving first-seen order. */
+function uniqueById<T extends { id: string }>(refs: T[]): T[] {
+  const seen = new Set<string>();
+  return refs.filter((r) => {
+    if (seen.has(r.id)) return false;
+    seen.add(r.id);
+    return true;
+  });
 }
 
 function resolveMemory(m: MemoryInput): ResolvedMemory {
@@ -194,7 +175,7 @@ export function parseProject(rootDir: string): ParsedProject {
       }
     }
 
-    // tools
+    // tools — deduped by id (a repeated tool emits one import + one map entry).
     const tools: ResolvedTool[] = [];
     for (const toolId of agent.tools) {
       const toolPath = `tools/${toolId}.ts`;
@@ -202,11 +183,8 @@ export function parseProject(rootDir: string): ParsedProject {
         addIssue(agentPath, `tool not found: ${toolPath}`);
         continue;
       }
-      tools.push({
-        id: toolId,
-        filePath: toolPath,
-        exportName: toExportName(toolId),
-      });
+      if (tools.some((t) => t.id === toolId)) continue;
+      tools.push({ id: toolId, filePath: toolPath, exportName: toExportName(toolId) });
     }
 
     // Only emit a fully-resolved agent; prompt/model issues are already recorded.
@@ -218,14 +196,16 @@ export function parseProject(rootDir: string): ParsedProject {
 
     agents.push({
       id: agentId,
+      exportName: toExportName(agentId),
       name: agent.name,
       description: agent.description,
       instructions,
       model: resolvedModel,
       tools,
-      subAgents: agent.agents.map((id) => ({ id, exportName: toExportName(id) })),
+      // Ref lists are deduped by id so the emitter never re-deduplicates.
+      subAgents: uniqueById(agent.agents.map((id) => ({ id, exportName: toExportName(id) }))),
       lazyAgents: false, // set below once the full sub-agent graph is known
-      workflows: agent.workflows.map((id) => ({ id, exportName: toExportName(id) })),
+      workflows: uniqueById(agent.workflows.map((id) => ({ id, exportName: toExportName(id) }))),
       lazyWorkflows: false, // set in Phase C
       memory: agent.memory,
     });
@@ -270,264 +250,11 @@ export function parseProject(rootDir: string): ParsedProject {
       addIssue(wfPath, formatZodError(wfResult.error));
       continue;
     }
-    const wf = wfResult.data;
 
-    const agentRefs: ResolvedWorkflowRef[] = [];
-    const toolRefs: ResolvedTool[] = [];
-    const stepFileRefs: ResolvedTool[] = [];
-    const conditionFileRefs: ResolvedTool[] = [];
-    let ok = true;
-
-    // Resolve one leaf (agent | tool | step), recording refs for imports. Returns
-    // undefined and records an issue on any problem.
-    const resolveLeaf = (
-      node: { agent?: string; tool?: string; step?: string },
-      where: string,
-    ): ResolvedStepRef | undefined => {
-      const kinds = [
-        node.agent !== undefined ? 'agent' : null,
-        node.tool !== undefined ? 'tool' : null,
-        node.step !== undefined ? 'step' : null,
-      ].filter(Boolean);
-      if (kinds.length !== 1) {
-        addIssue(wfPath, `${where} must have exactly one of \`agent:\`, \`tool:\`, or \`step:\``);
-        return undefined;
-      }
-      if (node.agent !== undefined) {
-        const id = node.agent;
-        if (!configAgentSet.has(id)) {
-          addIssue(wfPath, `agent not found: ${id} (must be listed in config.yaml agents)`);
-          return undefined;
-        }
-        const exportName = toExportName(id);
-        if (!agentRefs.some((a) => a.id === id)) agentRefs.push({ id, exportName });
-        return { kind: 'agent', id, exportName };
-      }
-      if (node.tool !== undefined) {
-        const id = node.tool;
-        const toolPath = `tools/${id}.ts`;
-        if (!existsSync(join(rootDir, toolPath))) {
-          addIssue(wfPath, `tool not found: ${toolPath}`);
-          return undefined;
-        }
-        const exportName = toExportName(id);
-        if (!toolRefs.some((t) => t.id === id)) {
-          toolRefs.push({ id, filePath: toolPath, exportName });
-        }
-        return { kind: 'tool', id, exportName };
-      }
-      const id = node.step!;
-      const stepPath = `step/${id}.ts`;
-      if (!existsSync(join(rootDir, stepPath))) {
-        addIssue(wfPath, `step not found: ${stepPath}`);
-        return undefined;
-      }
-      const exportName = toExportName(id);
-      if (!stepFileRefs.some((s) => s.id === id)) {
-        stepFileRefs.push({ id, filePath: stepPath, exportName });
-      }
-      return { kind: 'step', id, exportName };
-    };
-
-    const resolvedSteps: ResolvedWorkflowStep[] = [];
-    for (const [i, step] of wf.steps.entries()) {
-      const hasParallel = Array.isArray(step.parallel);
-      const hasAgent = typeof step.agent === 'string';
-      const hasTool = typeof step.tool === 'string';
-      const hasStep = typeof step.step === 'string';
-      const hasLoop = step.loop !== undefined && step.loop !== null;
-      if (
-        (hasParallel ? 1 : 0) + (hasAgent ? 1 : 0) + (hasTool ? 1 : 0) + (hasStep ? 1 : 0) + (hasLoop ? 1 : 0) !==
-        1
-      ) {
-        addIssue(
-          wfPath,
-          `step ${i + 1} must have exactly one of \`agent:\`, \`tool:\`, \`step:\`, \`parallel:\`, or \`loop:\``,
-        );
-        ok = false;
-        continue;
-      }
-      if (hasParallel) {
-        const kids = step.parallel as { agent?: string; tool?: string; step?: string }[];
-        if (kids.length < 2) {
-          addIssue(wfPath, `step ${i + 1}: \`parallel\` needs at least 2 steps (use a plain step otherwise)`);
-          ok = false;
-          continue;
-        }
-        const resolvedKids: ResolvedStepRef[] = [];
-        for (const [j, kid] of kids.entries()) {
-          const c = resolveLeaf(kid, `step ${i + 1} parallel child ${j + 1}`);
-          if (!c) ok = false;
-          else resolvedKids.push(c);
-        }
-        // Mastra keys parallel results by step id (the agent/tool id). Two children
-        // with the same id would silently overwrite each other (and both still run),
-        // so reject duplicates here rather than emit code that loses a result.
-        const dupes = new Set<string>();
-        const seenKids = new Set<string>();
-        for (const c of resolvedKids) {
-          if (seenKids.has(c.id)) dupes.add(c.id);
-          seenKids.add(c.id);
-        }
-        for (const id of dupes) {
-          addIssue(wfPath, `step ${i + 1}: \`parallel\` has duplicate step \`${id}\` — each parallel child must be a distinct agent/tool`);
-          ok = false;
-        }
-        if (resolvedKids.length === kids.length && dupes.size === 0) {
-          resolvedSteps.push({ kind: 'parallel', children: resolvedKids });
-        }
-      } else if (hasLoop) {
-        const lp = step.loop as {
-          until?: string;
-          while?: string;
-          foreach?: boolean;
-          agent?: string;
-          tool?: string;
-          step?: string;
-          steps?: { agent?: string; tool?: string; step?: string }[];
-          input?: Record<string, unknown>;
-          output?: Record<string, unknown>;
-          max_iterations?: number;
-          concurrency?: number;
-        };
-
-        // --- driver ---
-        const drivers = [
-          lp.until !== undefined ? 'until' : null,
-          lp.while !== undefined ? 'while' : null,
-          lp.foreach !== undefined ? 'foreach' : null,
-        ].filter(Boolean);
-        if (drivers.length > 1) {
-          addIssue(wfPath, `step ${i + 1}: loop has more than one of \`until:\`, \`while:\`, \`foreach:\``);
-          ok = false;
-          continue;
-        }
-        if (drivers.length === 0 && lp.max_iterations === undefined) {
-          addIssue(
-            wfPath,
-            `step ${i + 1}: loop needs one of \`until:\`, \`while:\`, \`foreach:\`, or \`max_iterations:\``,
-          );
-          ok = false;
-          continue;
-        }
-        if (lp.foreach !== undefined && lp.foreach !== true) {
-          addIssue(wfPath, `step ${i + 1}: \`foreach\` must be \`true\``);
-          ok = false;
-          continue;
-        }
-        if (lp.foreach && lp.max_iterations !== undefined) {
-          addIssue(wfPath, `step ${i + 1}: \`max_iterations\` is not valid with \`foreach:\``);
-          ok = false;
-          continue;
-        }
-        if (lp.concurrency !== undefined && !lp.foreach) {
-          addIssue(wfPath, `step ${i + 1}: \`concurrency\` is only valid with \`foreach:\``);
-          ok = false;
-          continue;
-        }
-
-        // --- body (exactly one of: single leaf | steps sequence) ---
-        const hasLeafBody = lp.agent !== undefined || lp.tool !== undefined || lp.step !== undefined;
-        const hasSeqBody = Array.isArray(lp.steps) && lp.steps.length > 0;
-        if (hasLeafBody === hasSeqBody) {
-          addIssue(
-            wfPath,
-            `step ${i + 1}: loop must have exactly one body — a single \`agent:\`/\`tool:\`/\`step:\` or a \`steps:\` list`,
-          );
-          ok = false;
-          continue;
-        }
-
-        let body: ResolvedLoopBody | undefined;
-        if (hasLeafBody) {
-          if (lp.input !== undefined || lp.output !== undefined) {
-            addIssue(wfPath, `step ${i + 1}: \`input:\`/\`output:\` are only for a multi-step \`steps:\` body`);
-            ok = false;
-            continue;
-          }
-          const ref = resolveLeaf({ agent: lp.agent, tool: lp.tool, step: lp.step }, `step ${i + 1} loop body`);
-          if (!ref) {
-            ok = false;
-            continue;
-          }
-          body = { kind: 'leaf', ref };
-        } else {
-          if (lp.input === undefined || lp.output === undefined) {
-            addIssue(wfPath, `step ${i + 1}: a multi-step loop body requires \`input:\` and \`output:\``);
-            ok = false;
-            continue;
-          }
-          const inC = compileZodObject(lp.input);
-          const outC = compileZodObject(lp.output);
-          for (const e of inC.errors) addIssue(wfPath, `step ${i + 1} loop input.${e}`);
-          for (const e of outC.errors) addIssue(wfPath, `step ${i + 1} loop output.${e}`);
-          const refs: ResolvedStepRef[] = [];
-          let bodyOk = true;
-          for (const [j, kid] of lp.steps!.entries()) {
-            const r = resolveLeaf(kid, `step ${i + 1} loop body step ${j + 1}`);
-            if (!r) bodyOk = false;
-            else refs.push(r);
-          }
-          if (!bodyOk || inC.errors.length || outC.errors.length) {
-            ok = false;
-            continue;
-          }
-          body = { kind: 'sequence', id: `${wfId}-loop-${i + 1}`, inputZod: inC.expr, outputZod: outC.expr, steps: refs };
-        }
-
-        // --- condition (until/while only) ---
-        let condition: ResolvedTool | undefined;
-        if (lp.until !== undefined || lp.while !== undefined) {
-          const condId = (lp.until ?? lp.while) as string;
-          const condPath = `condition/${condId}.ts`;
-          if (!existsSync(join(rootDir, condPath))) {
-            addIssue(wfPath, `condition not found: ${condPath}`);
-            ok = false;
-            continue;
-          }
-          const exportName = toExportName(condId);
-          if (!conditionFileRefs.some((c) => c.id === condId)) {
-            conditionFileRefs.push({ id: condId, filePath: condPath, exportName });
-          }
-          condition = { id: condId, filePath: condPath, exportName };
-        }
-
-        const loopKind: 'dountil' | 'dowhile' | 'foreach' = lp.foreach
-          ? 'foreach'
-          : lp.while !== undefined
-            ? 'dowhile'
-            : 'dountil';
-
-        resolvedSteps.push({
-          kind: 'loop',
-          loop: { loopKind, body, condition, maxIterations: lp.max_iterations, concurrency: lp.concurrency },
-        });
-      } else {
-        const ref = resolveLeaf(step, `step ${i + 1}`);
-        if (!ref) ok = false;
-        else resolvedSteps.push({ kind: ref.kind, ref });
-      }
-    }
-
-    const inCompiled = compileZodObject(wf.input as Record<string, unknown>);
-    const outCompiled = compileZodObject(wf.output as Record<string, unknown>);
-    for (const e of inCompiled.errors) addIssue(wfPath, `input.${e}`);
-    for (const e of outCompiled.errors) addIssue(wfPath, `output.${e}`);
-
-    if (!ok || inCompiled.errors.length || outCompiled.errors.length) continue;
-
-    workflows.push({
-      id: wfId,
-      description: wf.description,
-      exportName: toExportName(wfId),
-      inputZod: inCompiled.expr,
-      outputZod: outCompiled.expr,
-      steps: resolvedSteps,
-      agents: agentRefs,
-      tools: toolRefs,
-      stepFiles: stepFileRefs,
-      conditionFiles: conditionFileRefs,
-    });
+    // Semantic resolution (step shapes, ref lookup, loop rules) lives in its own
+    // module; the parser only handles file IO + schema validation.
+    const resolved = resolveWorkflow(wfResult.data, wfId, { rootDir, configAgentSet, addIssue });
+    if (resolved) workflows.push(resolved);
   }
 
   // Validate every attached workflow exists in config.workflows.
@@ -605,7 +332,7 @@ export function parseProject(rootDir: string): ParsedProject {
     reportCollisions(`agent/${agent.id}.yaml`, [
       { name: 'Agent', key: 'reserved:Agent' },
       ...(agent.memory ? [{ name: 'memory', key: 'reserved:memory' }] : []),
-      { name: toExportName(agent.id), key: `agent:${agent.id}` },
+      { name: agent.exportName, key: `agent:${agent.id}` },
       ...agent.tools.map((t) => ({ name: t.exportName, key: `tool:${t.id}` })),
       ...agent.subAgents
         .filter((s) => s.id !== agent.id)

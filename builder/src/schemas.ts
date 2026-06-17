@@ -112,3 +112,6 @@ export type AgentInput = z.infer<typeof AgentSchema>;
 export type ModelInput = z.infer<typeof ModelSchema>;
 export type MemoryInput = z.infer<typeof MemorySchema>;
 export type WorkflowInput = z.infer<typeof WorkflowSchema>;
+export type WorkflowStepInput = z.infer<typeof WorkflowStepSchema>;
+export type WorkflowLeafInput = z.infer<typeof WorkflowLeafSchema>;
+export type LoopInput = z.infer<typeof LoopSchema>;

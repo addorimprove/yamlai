@@ -41,6 +41,13 @@ test('resolves sub-agent references into subAgents with camelCase export names',
   assert.deepEqual(research?.subAgents, []);
 });
 
+test('dedupes repeated sub-agent references by id', () => {
+  const dir = makeProject(twoAgents('agents: [research-agent, research-agent]\n'));
+  const project = parseProject(dir);
+  const parent = project.agents.find((a) => a.id === 'parent');
+  assert.deepEqual(parent?.subAgents, [{ id: 'research-agent', exportName: 'researchAgent' }]);
+});
+
 test('errors when a sub-agent is not listed in config.yaml', () => {
   const dir = makeProject(twoAgents('agents: [ghost-agent]\n'));
   assert.throws(() => parseProject(dir), /sub-agent not found: ghost-agent/);
