@@ -1,7 +1,8 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { compileZodObject } from './zod-compile.js';
-import { toExportName } from './naming.js';
+import { fileExportsName } from './read.js';
+import { invalidExportIdReason, toExportName } from './naming.js';
 import type { LoopInput, WorkflowInput, WorkflowLeafInput, WorkflowStepInput } from './schemas.js';
 import type {
   ResolvedFileRef,
@@ -140,21 +141,15 @@ class WorkflowResolver {
     if (node.tool !== undefined) {
       const id = node.tool;
       const filePath = `tools/${id}.ts`;
-      if (!this.fileExists(filePath)) {
-        this.issue(`tool not found: ${filePath}`);
-        return undefined;
-      }
-      const exportName = toExportName(id);
+      const exportName = this.resolveFileExport(id, filePath, 'tool');
+      if (!exportName) return undefined;
       if (!this.toolRefs.some((t) => t.id === id)) this.toolRefs.push({ id, filePath, exportName });
       return { kind: 'tool', id, exportName };
     }
     const id = node.step!;
     const filePath = `workflow/steps/${id}.ts`;
-    if (!this.fileExists(filePath)) {
-      this.issue(`step not found: ${filePath}`);
-      return undefined;
-    }
-    const exportName = toExportName(id);
+    const exportName = this.resolveFileExport(id, filePath, 'step');
+    if (!exportName) return undefined;
     if (!this.stepFileRefs.some((s) => s.id === id)) this.stepFileRefs.push({ id, filePath, exportName });
     return { kind: 'step', id, exportName };
   }
@@ -226,11 +221,11 @@ class WorkflowResolver {
     if (lp.until !== undefined || lp.while !== undefined) {
       const condId = (lp.until ?? lp.while)!;
       const filePath = `workflow/condition/${condId}.ts`;
-      if (!this.fileExists(filePath)) {
-        this.fail(`condition not found: ${filePath}`);
+      const exportName = this.resolveFileExport(condId, filePath, 'condition');
+      if (!exportName) {
+        this.ok = false;
         return undefined;
       }
-      const exportName = toExportName(condId);
       if (!this.conditionFileRefs.some((c) => c.id === condId)) {
         this.conditionFileRefs.push({ id: condId, filePath, exportName });
       }
@@ -294,5 +289,30 @@ class WorkflowResolver {
 
   private fileExists(relPath: string): boolean {
     return existsSync(join(this.ctx.rootDir, relPath));
+  }
+
+  /** Validate a referenced tool/step/condition file: its id yields a safe export
+   *  identifier, the file exists, and it actually exports that name (the generated
+   *  import assumes it). Returns the export name, or undefined after recording why. */
+  private resolveFileExport(
+    id: string,
+    relPath: string,
+    kind: 'tool' | 'step' | 'condition',
+  ): string | undefined {
+    const reason = invalidExportIdReason(id);
+    if (reason) {
+      this.issue(`${kind} ${reason}`);
+      return undefined;
+    }
+    if (!this.fileExists(relPath)) {
+      this.issue(`${kind} not found: ${relPath}`);
+      return undefined;
+    }
+    const exportName = toExportName(id);
+    if (!fileExportsName(this.ctx.rootDir, relPath, exportName)) {
+      this.issue(`${relPath} must export \`${exportName}\` (a named export matching the ${kind} id \`${id}\`)`);
+      return undefined;
+    }
+    return exportName;
   }
 }

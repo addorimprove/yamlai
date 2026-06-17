@@ -1,7 +1,7 @@
 import { ConfigSchema, WorkflowSchema } from './schemas.js';
 import type { MemoryInput } from './schemas.js';
 import { ParseError, formatZodError, type ParseIssue } from './errors.js';
-import { toExportName } from './naming.js';
+import { invalidExportIdReason, toExportName } from './naming.js';
 import { findCyclicNodes } from './graph.js';
 import { readYaml } from './read.js';
 import { resolveAgent } from './resolve-agent.js';
@@ -67,6 +67,18 @@ export function parseProject(rootDir: string): ParsedProject {
   };
   reportDuplicates('agent', config.agents);
   reportDuplicates('workflow', config.workflows);
+
+  // An id whose camelCase form isn't a legal, non-reserved JS identifier (leading
+  // digit, separators-only, reserved word) would emit uncompilable imports/exports.
+  // Reject it here rather than produce code that fails `tsc`.
+  const reportInvalidIds = (field: string, ids: string[]): void => {
+    for (const id of ids) {
+      const reason = invalidExportIdReason(id);
+      if (reason) addIssue('config.yaml', `${field} ${reason}`);
+    }
+  };
+  reportInvalidIds('agent', config.agents);
+  reportInvalidIds('workflow', config.workflows);
 
   // 2. Resolve each agent (continue past errors to collect them all).
   const agents: ResolvedAgent[] = [];

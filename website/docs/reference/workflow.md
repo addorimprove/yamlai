@@ -29,7 +29,7 @@ steps:
 
 Mastra workflows are identified by `id` (the filename) — there is no `name` field. A `name:` left in the YAML is ignored.
 
-`agent:`/`tool:`/`step:` reference the project's existing [agent/&lt;id&gt;.yaml](./agent.md) / [tools/&lt;id&gt;.ts](./tools.md) / [workflow/steps/&lt;id&gt;.ts](./step.md) — each must resolve to an existing file (and `agent:` ids must be in [config.yaml](./config.md) `agents:`) or codegen fails.
+`agent:`/`tool:`/`step:` reference the project's existing [agent/&lt;id&gt;.yaml](./agent.md) / [tools/&lt;id&gt;.ts](./tools.md) / [workflow/steps/&lt;id&gt;.ts](./step.md) — each must resolve to an existing file (a `tool:`/`step:` file must export the camelCased id, and `agent:` ids must be in [config.yaml](./config.md) `agents:`); `validate` catches a missing or mismatched reference.
 
 ## `input` / `output` schemas
 

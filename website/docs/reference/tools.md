@@ -4,7 +4,7 @@ title: "tools/<id>.ts"
 
 # tools/&lt;id&gt;.ts
 
-A **TypeScript module** (not YAML) exporting one Mastra tool via `createTool`. The id is the filename (`tools/echo-tool.ts` → id `echo-tool`); the export must be its camelCase form (`echoTool`). Selected by an agent's [`tools:`](./agent.md) list. The file is copied **verbatim** into the output.
+A **TypeScript module** (not YAML) exporting one Mastra tool via `createTool`. The id is the filename (`tools/echo-tool.ts` → id `echo-tool`); the file **must export** its camelCase form (`echoTool`) — `validate` checks the file exists *and* declares that export (the [id must also be a valid identifier](./config.md#id-naming)). Selected by an agent's [`tools:`](./agent.md) list. The file is copied **verbatim** into the output.
 
 ```typescript
 import { createTool } from '@mastra/core/tools';

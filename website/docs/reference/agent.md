@@ -28,7 +28,7 @@ agents:
 | `tools` | string[] | No | `[]` | **Tool ids** → [tools/&lt;id&gt;.ts](./tools.md). |
 | `agents` | string[] | No | `[]` | **Sub-agent ids** → [agent/&lt;id&gt;.yaml](./agent.md), and must be in [config.yaml](./config.md) `agents:`. |
 
-`instructions`, `model`, and `tools` hold **ids**, not inline values — each must resolve to an existing file or codegen fails.
+`instructions`, `model`, and `tools` hold **ids**, not inline values — each must resolve to an existing file (and a `tools` file must export the camelCased id); `validate` catches a missing or mismatched reference.
 
 ## Generates `src/mastra/agents/support-agent.ts`
 

@@ -4,7 +4,7 @@ title: "workflow/condition/<id>.ts"
 
 # workflow/condition/&lt;id&gt;.ts
 
-A **TypeScript module** (not YAML) exporting one loop predicate. The id is the filename (`workflow/condition/good-enough.ts` → id `good-enough`); the export must be its camelCase form (`goodEnough`). Referenced by a [workflow](./workflow.md) `loop:`'s `until:`/`while:`. The file is copied **verbatim** into the output.
+A **TypeScript module** (not YAML) exporting one loop predicate. The id is the filename (`workflow/condition/good-enough.ts` → id `good-enough`); the file **must export** its camelCase form (`goodEnough`) — `validate` checks the file exists *and* declares that export (the [id must also be a valid identifier](./config.md#id-naming)). Referenced by a [workflow](./workflow.md) `loop:`'s `until:`/`while:`. The file is copied **verbatim** into the output.
 
 A condition is a Mastra `LoopConditionFunction` — an `async` function returning a `boolean`. It receives the **loop body's output** as `inputData`, plus the engine's `iterationCount`, plus the usual step params (`mastra`, `getStepResult`, …).
 
@@ -47,7 +47,7 @@ steps:
       max_iterations: 5
 ```
 
-The referenced `workflow/condition/<id>.ts` must exist or codegen fails.
+The referenced `workflow/condition/<id>.ts` must exist and export the camelCased id — `validate` checks both.
 
 ## Generated output
 
@@ -62,6 +62,7 @@ import { goodEnough } from './condition/good-enough';
 
 ## Gotchas
 
-- **Type `inputData` to match the body's output.** The builder copies the file verbatim and does
-  **not** check shapes at parse time — a mismatch surfaces at the generated project's strict `tsc`.
+- **Type `inputData` to match the body's output.** `validate` checks the file exists and exports
+  the camelCased id, but copies it verbatim and does **not** check `inputData`/return *shapes* at
+  parse time — a shape mismatch surfaces at the generated project's strict `tsc`.
 - **Must be `async`.** A non-async predicate won't satisfy `LoopConditionFunction`.

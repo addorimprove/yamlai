@@ -2,8 +2,8 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { AgentSchema, ModelSchema } from './schemas.js';
 import { formatZodError } from './errors.js';
-import { toExportName } from './naming.js';
-import { readText, readYaml, type AddIssue } from './read.js';
+import { invalidExportIdReason, toExportName } from './naming.js';
+import { fileExportsName, readText, readYaml, type AddIssue } from './read.js';
 import type { ResolvedAgent, ResolvedModel, ResolvedTool } from './types.js';
 
 /** What the resolver needs from its caller: where files live, whether the project
@@ -87,12 +87,22 @@ export function resolveAgent(
   const tools: ResolvedTool[] = [];
   for (const toolId of agent.tools) {
     const toolPath = `tools/${toolId}.ts`;
+    const reason = invalidExportIdReason(toolId);
+    if (reason) {
+      ctx.addIssue(agentPath, `tool ${reason}`);
+      continue;
+    }
     if (!existsSync(join(ctx.rootDir, toolPath))) {
       ctx.addIssue(agentPath, `tool not found: ${toolPath}`);
       continue;
     }
+    const exportName = toExportName(toolId);
+    if (!fileExportsName(ctx.rootDir, toolPath, exportName)) {
+      ctx.addIssue(agentPath, `${toolPath} must export \`${exportName}\` (a named export matching the tool id \`${toolId}\`)`);
+      continue;
+    }
     if (tools.some((t) => t.id === toolId)) continue;
-    tools.push({ id: toolId, filePath: toolPath, exportName: toExportName(toolId) });
+    tools.push({ id: toolId, filePath: toolPath, exportName });
   }
 
   // Only emit a fully-resolved agent; prompt/model issues are already recorded.

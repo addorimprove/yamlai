@@ -19,7 +19,10 @@ function makeProject(files: Record<string, string>): string {
 
 const MODEL = 'provider: openai\nmodel: gpt-5-mini\n';
 const PROMPT = 'You are a test agent.\n';
-const TOOL = "import { createTool } from '@mastra/core/tools';\nexport const x = {};\n";
+// A tool stub must export the camelCase of its id (the generated import assumes it),
+// so the parser now verifies that — build the stub from the expected export name.
+const tool = (exportName: string) =>
+  `import { createTool } from '@mastra/core/tools';\nexport const ${exportName} = {};\n`;
 
 // Two agents + the two tools, with a `workflows:` config list the caller supplies.
 function base(workflows: string): Record<string, string> {
@@ -29,8 +32,8 @@ function base(workflows: string): Record<string, string> {
     'agent/support-agent.yaml': 'name: S\ninstructions: p\nmodel: m\n',
     'prompt/p.md': PROMPT,
     'model/m.yaml': MODEL,
-    'tools/rephrase.ts': TOOL,
-    'tools/merge-answers.ts': TOOL,
+    'tools/rephrase.ts': tool('rephrase'),
+    'tools/merge-answers.ts': tool('mergeAnswers'),
   };
 }
 

@@ -45,3 +45,13 @@ export const mastra = new Mastra({
 ```
 
 Only agents are registered. `storage` is omitted entirely if absent. Kebab-case ids → camelCase exports (`support-agent` → `supportAgent`).
+
+## Id naming {#id-naming}
+
+Every id (agent, workflow, tool, step, condition) becomes a generated `import`/`export` name via that kebab/snake → camelCase mapping, so it must produce a **valid, non-reserved JavaScript identifier**. `validate` rejects an id up front when its camelCase form:
+
+- is **empty** — the id has no identifier characters (e.g. `--`);
+- is **not a legal identifier** — e.g. a leading digit (`2nd-flow` → `2ndFlow`) or an embedded space;
+- is a **reserved word** — e.g. `delete`, `return`, `class`.
+
+This catches the problem at `validate` time instead of emitting TypeScript that fails the generated project's `tsc`.

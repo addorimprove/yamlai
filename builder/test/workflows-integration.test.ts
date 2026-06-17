@@ -17,7 +17,9 @@ function makeProject(files: Record<string, string>): string {
   return dir;
 }
 
-const TOOL = "import { createTool } from '@mastra/core/tools';\nexport const t = {};\n";
+// A tool stub must export the camelCase of its id — the parser verifies it.
+const tool = (exportName: string) =>
+  `import { createTool } from '@mastra/core/tools';\nexport const ${exportName} = {};\n`;
 
 function project(): string {
   return makeProject({
@@ -27,7 +29,7 @@ function project(): string {
     'agent/support-agent.yaml': 'name: S\ninstructions: p\nmodel: m\n',
     'prompt/p.md': 'hi\n',
     'model/m.yaml': 'provider: openai\nmodel: gpt-5-mini\n',
-    'tools/merge-answers.ts': TOOL,
+    'tools/merge-answers.ts': tool('mergeAnswers'),
     'workflow/compare-answers.yaml':
       'input: { prompt: string }\noutput: { comparison: string }\n' +
       'steps:\n  - parallel:\n      - agent: research-agent\n      - agent: support-agent\n  - tool: merge-answers\n',
@@ -54,7 +56,7 @@ test('copies a shared tool exactly once', () => {
     'agent/a.yaml': 'name: A\ninstructions: p\nmodel: m\ntools: [shared]\n',
     'prompt/p.md': 'hi\n',
     'model/m.yaml': 'provider: openai\nmodel: gpt-5-mini\n',
-    'tools/shared.ts': TOOL,
+    'tools/shared.ts': tool('shared'),
     'workflow/w.yaml': 'steps:\n  - agent: a\n  - tool: shared\n',
   });
   const files = generateProject(parseProject(dir), dir);
