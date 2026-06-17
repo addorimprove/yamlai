@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-14 (rescoped 2026-06-17)
 **Feature:** Workflows for the YAML Agent Builder (roadmap #15)
-**Status:** implemented (v1) — sequential + parallel + agent attachment; fuller control flow (loops/`foreach`/`branch`/conditions) still deferred (see end)
+**Status:** implemented (v1) — sequential + parallel + agent attachment + custom `step/` resource; fuller control flow (loops/`foreach`/`branch`/conditions) still deferred (see end)
 
 ---
 
@@ -10,7 +10,9 @@
 
 **In:**
 - Workflows defined in `workflow/<id>.yaml` (a flat file, mirroring `agent/<id>.yaml`).
-- Step kinds: **`agent: <id>`** and **`tool: <id>`** only.
+- Step kinds: **`agent: <id>`**, **`tool: <id>`**, and **`step: <id>`** (a custom author-as-code
+  `step/<id>.ts`, copied verbatim like tools and used directly in the chain — see "Custom `step/`
+  resource" below).
 - Composition: **sequential** (`.then`) and **parallel** (`.parallel`) only.
 - Workflow `input`/`output` via YAML→Zod (primitives).
 - Workflows registered on the Mastra instance via `config.yaml → workflows: [<id>]`.
@@ -20,13 +22,15 @@
   (`workflows: ({ mastra }) => ({ compareAnswers: mastra!.getWorkflow("compareAnswers") })`) to
   avoid an agent⇄workflow static import cycle. Acyclic attachments use a plain static import + object.
 
-**Deferred** (all researched + engine-verified — see "Deferred" at the end): custom `step/`
-resource, `schema/` escape hatch, `branch` / `loop` / `foreach`, conditions (`when:`/`when_step:`),
-and human-in-the-loop (suspend/resume).
+**Deferred** (all researched + engine-verified — see "Deferred" at the end): `schema/` escape
+hatch, `branch` / `loop` / `foreach`, conditions (`when:`/`when_step:`), and human-in-the-loop
+(suspend/resume).
 
-> **Why this is still expressive:** with no custom-step resource, **tools are the glue.** A tool
-> has arbitrary in/out schemas, so it does the `{text}→{prompt}` reshaping between agents and the
-> merge after a parallel block. Agents do the LLM work; tools shape and combine.
+> **Why this is expressive:** **tools and steps are the glue.** A tool/step has arbitrary in/out
+> schemas, so it does the `{text}→{prompt}` reshaping between agents and the merge after a parallel
+> block. Agents do the LLM work; tools/steps shape and combine. Prefer a `step:` when you want the
+> reshaping's `execute` type-checked (`inputData` is inferred from `inputSchema`); a glue `tool:`'s
+> `execute` is typed `any`.
 
 ```mermaid
 flowchart LR
@@ -286,8 +290,11 @@ Each step is independently shippable and tested, matching parser / codegen / mem
 
 Kept here as the roadmap for the next increments (all checked against @mastra/core@1.42):
 
-- **Custom `step/` resource** — author-as-code `createStep({...})` for glue/logic that a tool
-  can't express (workflow context, state). v1 uses tools for glue instead.
+- ~~**Custom `step/` resource**~~ — **SHIPPED** (2026-06-17). Author-as-code `step/<id>.ts`
+  (`createStep({...})`), referenced via a `step:` leaf, copied verbatim into
+  `src/mastra/workflows/steps/<id>.ts` and used directly in the chain (no `createStep` wrapper). Its
+  `execute` input is typed from `inputSchema` — a typed alternative to glue tools. See
+  `plans/2026-06-17-workflow-steps.md` and `website/docs/reference/step.md`.
 - **`schema/` escape hatch** — `.ts` Zod schema for IO too complex for YAML→Zod.
 - **Loops + condition resource** — a `loop:` step kind emitting `.dountil`/`.dowhile`/`.foreach`,
   backed by a `workflow/condition/<id>.ts` predicate file (copied verbatim like `tools/`):
