@@ -57,13 +57,40 @@ export interface ResolvedStepRef {
   exportName: string;
 }
 
-/** One workflow step: a single agent/tool/step, or a parallel block of leaf steps. */
+/** A loop body: one leaf, or an inline nested-workflow sequence. */
+export type ResolvedLoopBody =
+  | { kind: 'leaf'; ref: ResolvedStepRef }
+  | {
+      kind: 'sequence';
+      /** Synthetic nested-workflow id, e.g. "refine-loop-loop-2". */
+      id: string;
+      /** `z.object({...})` source for the nested workflow's input/output. */
+      inputZod: string;
+      outputZod: string;
+      steps: ResolvedStepRef[];
+    };
+
+/** A resolved loop step: a body driven by dountil/dowhile/foreach. */
+export interface ResolvedLoop {
+  loopKind: 'dountil' | 'dowhile' | 'foreach';
+  body: ResolvedLoopBody;
+  /** Predicate file for dountil/dowhile; absent for foreach and pure-count loops. */
+  condition?: ResolvedTool;
+  /** Iteration guard for dountil/dowhile/pure-count. */
+  maxIterations?: number;
+  /** Parallelism for foreach. */
+  concurrency?: number;
+}
+
+/** One workflow step: a single agent/tool/step, a parallel block, or a loop. */
 export interface ResolvedWorkflowStep {
-  kind: 'agent' | 'tool' | 'step' | 'parallel';
+  kind: 'agent' | 'tool' | 'step' | 'parallel' | 'loop';
   /** Set when kind is 'agent' | 'tool' | 'step'. */
   ref?: ResolvedStepRef;
   /** Set when kind is 'parallel' (always length >= 2). */
   children?: ResolvedStepRef[];
+  /** Set when kind is 'loop'. */
+  loop?: ResolvedLoop;
 }
 
 export interface ResolvedWorkflow {
@@ -81,6 +108,8 @@ export interface ResolvedWorkflow {
   tools: ResolvedTool[];
   /** Distinct custom steps referenced in this workflow, first-seen order (for imports + verbatim copy). */
   stepFiles: ResolvedTool[];
+  /** Distinct condition predicates referenced by loops, first-seen order (imports + verbatim copy). */
+  conditionFiles: ResolvedTool[];
 }
 
 export interface ResolvedAgent {
