@@ -254,10 +254,15 @@ shape it with a glue tool.
   agents/tools at that workflow module's scope — extending the existing collision check.
 - **Data-flow types are NOT checked at parse time** — step-to-step shape mismatches surface when
   `tsc` runs on the generated project (consistent with the existing "typecheck the output" approach).
-- The generated `tsconfig.json` sets **`strictFunctionTypes: false`** (keeping `strict: true`) for
-  Mastra agent-step compatibility: `createStep(agent)` produces a step whose `execute` reads a
-  concrete `{ prompt }` input, which `strictFunctionTypes` would reject contravariantly in the
-  `.then()` chain. Real step-to-step IO mismatches are still caught on the step `inputSchema`/`outputSchema`.
+- The generated `tsconfig.json` is **fully strict** (`strict: true`, incl. `strictFunctionTypes`).
+  > **Superseded (was: `strictFunctionTypes: false`).** That flag was originally disabled because
+  > `@mastra/core@1.42` typed `createStep(agent)` so its `execute` (`{ prompt }` input) was rejected
+  > contravariantly in every `.then()` chain — and it gave no real IO checking either way.
+  > **`@mastra/core@1.43` retyped `createStep`/`.then`/`.parallel`**: valid agent-step chains compile
+  > under full strict AND adjacent step IO mismatches now fail `tsc` (not just at runtime). So the
+  > pinned core is `^1.43`, the flag override is gone, and a post-`parallel` merge step must type its
+  > input as `z.record(z.string(), <commonChildOutput>)` (Mastra types parallel output as a record).
+  > The workflow's declared `outputSchema` is still not enforced against the last step (runtime/manual).
 
 ---
 
