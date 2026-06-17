@@ -23,6 +23,16 @@ export function emitAgent(agent: ResolvedAgent): string {
     seenSubImport.add(sub.exportName);
     lines.push(`import { ${sub.exportName} } from './${sub.id}';`);
   }
+  // Attached-workflow imports. Lazy (cyclic) agents reference workflows off the
+  // mastra instance instead, so an agent⇄workflow import cycle never forms.
+  if (!agent.lazyWorkflows) {
+    const seenWf = new Set<string>();
+    for (const wf of agent.workflows) {
+      if (seenWf.has(wf.exportName)) continue;
+      seenWf.add(wf.exportName);
+      lines.push(`import { ${wf.exportName} } from '../workflows/${wf.id}';`);
+    }
+  }
   if (agent.memory) {
     lines.push(`import { memory } from '../utils/memory';`);
   }
@@ -63,6 +73,26 @@ export function emitAgent(agent: ResolvedAgent): string {
         ? `  agents: () => ({ ${agentVars} }),`
         : `  agents: { ${agentVars} },`,
     );
+  }
+
+  if (agent.workflows.length > 0) {
+    if (agent.lazyWorkflows) {
+      // Deduped by export name, in first-seen order. mastra.getWorkflow(<exportName>)
+      // avoids importing the workflow module (breaks the agent⇄workflow import cycle).
+      // The arg is the REGISTRATION KEY (export name), which is how index.ts registers
+      // workflows; `mastra` is optional in the DynamicArgument thunk, hence `mastra!`.
+      // NOTE: do NOT extend the `export const … : Agent` annotation to cover
+      // lazyWorkflows — the thunk doesn't reference the agent's own binding, so there's
+      // no self-referential type to break. The annotation stays governed by lazyAgents.
+      const uniq = [...new Map(agent.workflows.map((w) => [w.exportName, w])).values()];
+      const entries = uniq
+        .map((w) => `${w.exportName}: mastra!.getWorkflow(${JSON.stringify(w.exportName)})`)
+        .join(', ');
+      fields.push(`  workflows: ({ mastra }) => ({ ${entries} }),`);
+    } else {
+      const wfVars = [...new Set(agent.workflows.map((w) => w.exportName))].join(', ');
+      fields.push(`  workflows: { ${wfVars} },`);
+    }
   }
 
   if (agent.memory) {
