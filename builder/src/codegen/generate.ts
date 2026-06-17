@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { ParsedProject } from '../types.js';
 import type { FileMap } from './types.js';
 import { emitAgent } from './emit-agent.js';
+import { emitWorkflow } from './emit-workflow.js';
 import { emitIndex } from './emit-mastra.js';
 import { emitMemory } from './emit-memory.js';
 import {
@@ -33,6 +34,15 @@ export function generateProject(project: ParsedProject, rootDir: string): FileMa
     for (const tool of agent.tools) {
       const dest = `src/mastra/tools/${tool.id}.ts`;
       if (files[dest]) continue; // copy each tool once even if shared across agents
+      files[dest] = readFileSync(join(rootDir, tool.filePath), 'utf8');
+    }
+  }
+
+  for (const wf of project.workflows) {
+    files[`src/mastra/workflows/${wf.id}.ts`] = emitWorkflow(wf);
+    for (const tool of wf.tools) {
+      const dest = `src/mastra/tools/${tool.id}.ts`;
+      if (files[dest]) continue; // already copied by an agent or another workflow
       files[dest] = readFileSync(join(rootDir, tool.filePath), 'utf8');
     }
   }
