@@ -88,15 +88,11 @@ export interface ResolvedLoop {
 }
 
 /** One workflow step: a single agent/tool/step, a parallel block, or a loop. */
-export interface ResolvedWorkflowStep {
-  kind: 'agent' | 'tool' | 'step' | 'parallel' | 'loop';
-  /** Set when kind is 'agent' | 'tool' | 'step'. */
-  ref?: ResolvedStepRef;
-  /** Set when kind is 'parallel' (always length >= 2). */
-  children?: ResolvedStepRef[];
-  /** Set when kind is 'loop'. */
-  loop?: ResolvedLoop;
-}
+export type ResolvedWorkflowStep =
+  | { kind: 'agent' | 'tool' | 'step'; ref: ResolvedStepRef }
+  /** A parallel block (children always length >= 2). */
+  | { kind: 'parallel'; children: ResolvedStepRef[] }
+  | { kind: 'loop'; loop: ResolvedLoop };
 
 export interface ResolvedWorkflow {
   id: string;

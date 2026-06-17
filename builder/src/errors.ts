@@ -1,3 +1,12 @@
+import type { z } from 'zod';
+
+/** Flatten a ZodError into a single `path: message; …` string for one issue line. */
+export function formatZodError(err: z.ZodError): string {
+  return err.issues
+    .map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`)
+    .join('; ');
+}
+
 export interface ParseIssue {
   /** File the issue was found in, relative to the project root. */
   file: string;

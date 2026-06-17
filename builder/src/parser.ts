@@ -1,37 +1,17 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { parse as parseYaml } from 'yaml';
-import { z } from 'zod';
-import { AgentSchema, ConfigSchema, ModelSchema, WorkflowSchema } from './schemas.js';
+import { ConfigSchema, WorkflowSchema } from './schemas.js';
 import type { MemoryInput } from './schemas.js';
-import { ParseError, type ParseIssue } from './errors.js';
+import { ParseError, formatZodError, type ParseIssue } from './errors.js';
 import { toExportName } from './naming.js';
 import { findCyclicNodes } from './graph.js';
+import { readYaml } from './read.js';
+import { resolveAgent } from './resolve-agent.js';
 import { resolveWorkflow } from './resolve-workflow.js';
 import type {
   ParsedProject,
   ResolvedAgent,
   ResolvedMemory,
-  ResolvedModel,
-  ResolvedTool,
   ResolvedWorkflow,
 } from './types.js';
-
-function formatZodError(err: z.ZodError): string {
-  return err.issues
-    .map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`)
-    .join('; ');
-}
-
-/** Dedupe ref objects by `id`, preserving first-seen order. */
-function uniqueById<T extends { id: string }>(refs: T[]): T[] {
-  const seen = new Set<string>();
-  return refs.filter((r) => {
-    if (seen.has(r.id)) return false;
-    seen.add(r.id);
-    return true;
-  });
-}
 
 function resolveMemory(m: MemoryInput): ResolvedMemory {
   const out: ResolvedMemory = {};
@@ -60,45 +40,8 @@ export function parseProject(rootDir: string): ParsedProject {
   const addIssue = (file: string, message: string) =>
     issues.push({ file, message });
 
-  // Returns undefined when an issue has been recorded and this file should be skipped.
-  function readYaml(relPath: string): unknown {
-    const abs = join(rootDir, relPath);
-    if (!existsSync(abs)) {
-      addIssue(relPath, 'file not found');
-      return undefined;
-    }
-    let parsed: unknown;
-    try {
-      parsed = parseYaml(readFileSync(abs, 'utf8'));
-    } catch (err) {
-      addIssue(relPath, `invalid YAML: ${(err as Error).message}`);
-      return undefined;
-    }
-    if (parsed === null || parsed === undefined) {
-      addIssue(relPath, 'file is empty or contains only null');
-      return undefined;
-    }
-    return parsed;
-  }
-
-  // Reads a raw text file (e.g. a prompt .md). Returns undefined (and records an
-  // issue) when the file is missing or blank.
-  function readText(relPath: string): string | undefined {
-    const abs = join(rootDir, relPath);
-    if (!existsSync(abs)) {
-      addIssue(relPath, 'file not found');
-      return undefined;
-    }
-    const content = readFileSync(abs, 'utf8');
-    if (content.trim() === '') {
-      addIssue(relPath, 'file is empty');
-      return undefined;
-    }
-    return content;
-  }
-
   // 1. config.yaml — fatal if missing/invalid (nothing else is reachable).
-  const rawConfig = readYaml('config.yaml');
+  const rawConfig = readYaml(rootDir, 'config.yaml', addIssue);
   if (rawConfig === undefined) throw new ParseError(issues);
 
   const configResult = ConfigSchema.safeParse(rawConfig);
@@ -125,7 +68,7 @@ export function parseProject(rootDir: string): ParsedProject {
   reportDuplicates('agent', config.agents);
   reportDuplicates('workflow', config.workflows);
 
-  // 2-5. Resolve each agent (continue past errors to collect them all).
+  // 2. Resolve each agent (continue past errors to collect them all).
   const agents: ResolvedAgent[] = [];
 
   // Sub-agent references, captured for every schema-valid agent (even ones that
@@ -134,81 +77,17 @@ export function parseProject(rootDir: string): ParsedProject {
   const agentWorkflowRefs = new Map<string, string[]>();
   const configAgentSet = new Set(config.agents);
 
+  const hasMemoryConfig = config.memory !== undefined;
   for (const agentId of config.agents) {
-    const agentPath = `agent/${agentId}.yaml`;
-    const rawAgent = readYaml(agentPath);
-    if (rawAgent === undefined) continue;
-
-    const agentResult = AgentSchema.safeParse(rawAgent);
-    if (!agentResult.success) {
-      addIssue(agentPath, formatZodError(agentResult.error));
-      continue;
-    }
-    const agent = agentResult.data;
-    subAgentRefs.set(agentId, agent.agents);
-    agentWorkflowRefs.set(agentId, agent.workflows);
-
-    // instructions: `instructions` is a prompt id referencing prompt/<id>.md.
-    const promptPath = `prompt/${agent.instructions}.md`;
-    const promptContent = readText(promptPath);
-    const instructions =
-      promptContent !== undefined ? promptContent.trimEnd() : undefined;
-
-    // model
-    const modelPath = `model/${agent.model}.yaml`;
-    const rawModel = readYaml(modelPath);
-    let resolvedModel: ResolvedModel | undefined;
-    if (rawModel !== undefined) {
-      const modelResult = ModelSchema.safeParse(rawModel);
-      if (!modelResult.success) {
-        addIssue(modelPath, formatZodError(modelResult.error));
-      } else {
-        const m = modelResult.data;
-        resolvedModel = {
-          id: agent.model,
-          provider: m.provider,
-          model: m.model,
-          routerString: `${m.provider}/${m.model}`,
-          temperature: m.temperature,
-          maxTokens: m.max_tokens,
-        };
-      }
-    }
-
-    // tools — deduped by id (a repeated tool emits one import + one map entry).
-    const tools: ResolvedTool[] = [];
-    for (const toolId of agent.tools) {
-      const toolPath = `tools/${toolId}.ts`;
-      if (!existsSync(join(rootDir, toolPath))) {
-        addIssue(agentPath, `tool not found: ${toolPath}`);
-        continue;
-      }
-      if (tools.some((t) => t.id === toolId)) continue;
-      tools.push({ id: toolId, filePath: toolPath, exportName: toExportName(toolId) });
-    }
-
-    // Only emit a fully-resolved agent; prompt/model issues are already recorded.
-    if (instructions === undefined || !resolvedModel) continue;
-
-    if (agent.memory && config.memory === undefined) {
-      addIssue(agentPath, 'memory: true but config.yaml has no `memory:` block');
-    }
-
-    agents.push({
-      id: agentId,
-      exportName: toExportName(agentId),
-      name: agent.name,
-      description: agent.description,
-      instructions,
-      model: resolvedModel,
-      tools,
-      // Ref lists are deduped by id so the emitter never re-deduplicates.
-      subAgents: uniqueById(agent.agents.map((id) => ({ id, exportName: toExportName(id) }))),
-      lazyAgents: false, // set below once the full sub-agent graph is known
-      workflows: uniqueById(agent.workflows.map((id) => ({ id, exportName: toExportName(id) }))),
-      lazyWorkflows: false, // set in Phase C
-      memory: agent.memory,
-    });
+    // Per-agent resolution (prompt/model/tools) lives in its own module; the
+    // parser keeps the cross-agent passes (refs, cycles, collisions) below.
+    const res = resolveAgent(agentId, { rootDir, hasMemoryConfig, addIssue });
+    if (!res) continue;
+    // Captured for every schema-valid agent, even ones that fail prompt/model
+    // resolution, so their references are still validated and graphed.
+    subAgentRefs.set(agentId, res.subAgentRefs);
+    agentWorkflowRefs.set(agentId, res.workflowRefs);
+    if (res.agent) agents.push(res.agent);
   }
 
   const memoryUsed = config.memory !== undefined || agents.some((a) => a.memory);
@@ -242,7 +121,7 @@ export function parseProject(rootDir: string): ParsedProject {
 
   for (const wfId of config.workflows) {
     const wfPath = `workflow/${wfId}.yaml`;
-    const rawWf = readYaml(wfPath);
+    const rawWf = readYaml(rootDir, wfPath, addIssue);
     if (rawWf === undefined) continue;
 
     const wfResult = WorkflowSchema.safeParse(rawWf);

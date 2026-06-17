@@ -62,10 +62,10 @@ export function emitWorkflow(wf: ResolvedWorkflow): string {
 
   for (const step of wf.steps) {
     if (step.kind === 'parallel') {
-      const inner = step.children!.map(renderLeaf).join(', ');
+      const inner = step.children.map(renderLeaf).join(', ');
       lines.push(`  .parallel([${inner}])`);
     } else if (step.kind === 'loop') {
-      const lp = step.loop!;
+      const lp = step.loop;
       const body = renderLoopBody(lp.body);
       if (lp.loopKind === 'foreach') {
         const opts = lp.concurrency !== undefined ? `, { concurrency: ${lp.concurrency} }` : '';
@@ -74,7 +74,7 @@ export function emitWorkflow(wf: ResolvedWorkflow): string {
         lines.push(`  .${lp.loopKind}(${body}, ${renderLoopCondition(lp)})`);
       }
     } else {
-      lines.push(`  .then(${renderLeaf(step.ref!)})`);
+      lines.push(`  .then(${renderLeaf(step.ref)})`);
     }
   }
   lines.push(`  .commit();`);
