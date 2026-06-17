@@ -2,7 +2,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { z } from 'zod';
-import { AgentSchema, ConfigSchema, ModelSchema } from './schemas.js';
+import { AgentSchema, ConfigSchema, ModelSchema, WorkflowSchema } from './schemas.js';
+import { compileZodObject } from './zod-compile.js';
 import type { MemoryInput } from './schemas.js';
 import { ParseError, type ParseIssue } from './errors.js';
 import { toExportName } from './naming.js';
@@ -11,7 +12,11 @@ import type {
   ResolvedAgent,
   ResolvedMemory,
   ResolvedModel,
+  ResolvedStepRef,
   ResolvedTool,
+  ResolvedWorkflow,
+  ResolvedWorkflowRef,
+  ResolvedWorkflowStep,
 } from './types.js';
 
 function formatZodError(err: z.ZodError): string {
@@ -200,6 +205,8 @@ export function parseProject(rootDir: string): ParsedProject {
       tools,
       subAgents: agent.agents.map((id) => ({ id, exportName: toExportName(id) })),
       lazyAgents: false, // set below once the full sub-agent graph is known
+      workflows: [], // populated in Phase C
+      lazyWorkflows: false, // set in Phase C
       memory: agent.memory,
     });
   }
@@ -228,6 +235,115 @@ export function parseProject(rootDir: string): ParsedProject {
     if (cyclicNodes.has(agent.id)) agent.lazyAgents = true;
   }
 
+  // Workflows ---------------------------------------------------------------
+  // Resolve each declared workflow; collect every problem (don't stop at first).
+  const configWorkflowSet = new Set(config.workflows);
+  const workflows: ResolvedWorkflow[] = [];
+
+  for (const wfId of config.workflows) {
+    const wfPath = `workflow/${wfId}.yaml`;
+    const rawWf = readYaml(wfPath);
+    if (rawWf === undefined) continue;
+
+    const wfResult = WorkflowSchema.safeParse(rawWf);
+    if (!wfResult.success) {
+      addIssue(wfPath, formatZodError(wfResult.error));
+      continue;
+    }
+    const wf = wfResult.data;
+
+    const agentRefs: ResolvedWorkflowRef[] = [];
+    const toolRefs: ResolvedTool[] = [];
+    let ok = true;
+
+    // Resolve one leaf (agent | tool), recording refs for imports. Returns
+    // undefined and records an issue on any problem.
+    const resolveLeaf = (
+      node: { agent?: string; tool?: string },
+      where: string,
+    ): ResolvedStepRef | undefined => {
+      const hasAgent = typeof node.agent === 'string';
+      const hasTool = typeof node.tool === 'string';
+      if (hasAgent === hasTool) {
+        addIssue(wfPath, `${where} must have exactly one of \`agent:\` or \`tool:\``);
+        return undefined;
+      }
+      if (hasAgent) {
+        const id = node.agent as string;
+        if (!configAgentSet.has(id)) {
+          addIssue(wfPath, `agent not found: ${id} (must be listed in config.yaml agents)`);
+          return undefined;
+        }
+        const exportName = toExportName(id);
+        if (!agentRefs.some((a) => a.id === id)) agentRefs.push({ id, exportName });
+        return { kind: 'agent', id, exportName };
+      }
+      const id = node.tool as string;
+      const toolPath = `tools/${id}.ts`;
+      if (!existsSync(join(rootDir, toolPath))) {
+        addIssue(wfPath, `tool not found: ${toolPath}`);
+        return undefined;
+      }
+      const exportName = toExportName(id);
+      if (!toolRefs.some((t) => t.id === id)) {
+        toolRefs.push({ id, filePath: toolPath, exportName });
+      }
+      return { kind: 'tool', id, exportName };
+    };
+
+    const resolvedSteps: ResolvedWorkflowStep[] = [];
+    for (const [i, step] of wf.steps.entries()) {
+      const hasParallel = Array.isArray(step.parallel);
+      const hasAgent = typeof step.agent === 'string';
+      const hasTool = typeof step.tool === 'string';
+      if ((hasParallel ? 1 : 0) + (hasAgent ? 1 : 0) + (hasTool ? 1 : 0) !== 1) {
+        addIssue(wfPath, `step ${i + 1} must have exactly one of \`agent:\`, \`tool:\`, or \`parallel:\``);
+        ok = false;
+        continue;
+      }
+      if (hasParallel) {
+        const kids = step.parallel as { agent?: string; tool?: string }[];
+        if (kids.length < 2) {
+          addIssue(wfPath, `step ${i + 1}: \`parallel\` needs at least 2 steps (use a plain step otherwise)`);
+          ok = false;
+          continue;
+        }
+        const resolvedKids: ResolvedStepRef[] = [];
+        for (const [j, kid] of kids.entries()) {
+          const c = resolveLeaf(kid, `step ${i + 1} parallel child ${j + 1}`);
+          if (!c) ok = false;
+          else resolvedKids.push(c);
+        }
+        if (resolvedKids.length === kids.length) {
+          resolvedSteps.push({ kind: 'parallel', children: resolvedKids });
+        }
+      } else {
+        const ref = resolveLeaf(step, `step ${i + 1}`);
+        if (!ref) ok = false;
+        else resolvedSteps.push({ kind: ref.kind, ref });
+      }
+    }
+
+    const inCompiled = compileZodObject(wf.input as Record<string, unknown>);
+    const outCompiled = compileZodObject(wf.output as Record<string, unknown>);
+    for (const e of inCompiled.errors) addIssue(wfPath, `input.${e}`);
+    for (const e of outCompiled.errors) addIssue(wfPath, `output.${e}`);
+
+    if (!ok || inCompiled.errors.length || outCompiled.errors.length) continue;
+
+    workflows.push({
+      id: wfId,
+      name: wf.name,
+      description: wf.description,
+      exportName: toExportName(wfId),
+      inputZod: inCompiled.expr,
+      outputZod: outCompiled.expr,
+      steps: resolvedSteps,
+      agents: agentRefs,
+      tools: toolRefs,
+    });
+  }
+
   // Distinct ids that normalise to the same camelCase export name would emit
   // duplicate identifiers in the generated TypeScript (e.g. `research-agent`
   // and `research_agent` both -> `researchAgent`, or a tool id colliding with
@@ -253,11 +369,11 @@ export function parseProject(rootDir: string): ParsedProject {
       }
     }
   };
-  // Project scope: every declared agent is a top-level import in index.ts.
-  reportCollisions(
-    'config.yaml',
-    config.agents.map((id) => ({ name: toExportName(id), key: `agent:${id}` })),
-  );
+  // Project scope: every declared agent AND workflow is a top-level import in index.ts.
+  reportCollisions('config.yaml', [
+    ...config.agents.map((id) => ({ name: toExportName(id), key: `agent:${id}` })),
+    ...config.workflows.map((id) => ({ name: toExportName(id), key: `workflow:${id}` })),
+  ]);
   // Module scope: an agent file's own export, its tool imports, its sub-agent
   // imports, and the reserved imports the emitter always/conditionally adds
   // (`Agent` from @mastra/core, `memory` from utils) all share one identifier
@@ -275,6 +391,19 @@ export function parseProject(rootDir: string): ParsedProject {
     ]);
   }
 
+  // Module scope for each workflow file: its own export, its agent/tool imports,
+  // and the reserved imports the emitter always adds.
+  for (const wf of workflows) {
+    reportCollisions(`workflow/${wf.id}.yaml`, [
+      { name: 'createWorkflow', key: 'reserved:createWorkflow' },
+      { name: 'createStep', key: 'reserved:createStep' },
+      { name: 'z', key: 'reserved:z' },
+      { name: wf.exportName, key: `workflow:${wf.id}` },
+      ...wf.agents.map((a) => ({ name: a.exportName, key: `agent:${a.id}` })),
+      ...wf.tools.map((t) => ({ name: t.exportName, key: `tool:${t.id}` })),
+    ]);
+  }
+
   if (issues.length > 0) throw new ParseError(issues);
 
   const memory =
@@ -288,5 +417,6 @@ export function parseProject(rootDir: string): ParsedProject {
     storage: config.storage,
     memory,
     agents,
+    workflows,
   };
 }

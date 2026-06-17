@@ -43,6 +43,45 @@ export interface ResolvedSubAgent {
   exportName: string;
 }
 
+/** A reference to an attached workflow (agent.workflows) or a step target. */
+export interface ResolvedWorkflowRef {
+  id: string;
+  /** camelCase export variable name, e.g. "researchFlow". */
+  exportName: string;
+}
+
+/** A leaf step target inside a workflow (an agent or a tool). */
+export interface ResolvedStepRef {
+  kind: 'agent' | 'tool';
+  id: string;
+  exportName: string;
+}
+
+/** One workflow step: a single agent/tool, or a parallel block of leaf steps. */
+export interface ResolvedWorkflowStep {
+  kind: 'agent' | 'tool' | 'parallel';
+  /** Set when kind is 'agent' | 'tool'. */
+  ref?: ResolvedStepRef;
+  /** Set when kind is 'parallel' (always length >= 2). */
+  children?: ResolvedStepRef[];
+}
+
+export interface ResolvedWorkflow {
+  id: string;
+  name: string;
+  description: string;
+  /** camelCase export variable name, e.g. "researchFlow". */
+  exportName: string;
+  /** `z.object({...})` source expression for the workflow input/output. */
+  inputZod: string;
+  outputZod: string;
+  steps: ResolvedWorkflowStep[];
+  /** Distinct agents referenced anywhere in this workflow, in first-seen order (for imports). */
+  agents: ResolvedWorkflowRef[];
+  /** Distinct tools referenced anywhere in this workflow, in first-seen order (for imports + copy). */
+  tools: ResolvedTool[];
+}
+
 export interface ResolvedAgent {
   id: string;
   name: string;
@@ -56,6 +95,12 @@ export interface ResolvedAgent {
    *  Such agents must emit their `agents` field as a thunk to avoid ESM
    *  temporal-dead-zone / circular-import crashes at module load. */
   lazyAgents: boolean;
+  /** Workflows attached to this agent (from its `workflows:` list). */
+  workflows: ResolvedWorkflowRef[];
+  /** True when an attached workflow lies on an agent⇄workflow cycle back to this
+   *  agent. Such agents reference their workflows off the `mastra` instance
+   *  (`mastra.getWorkflow(id)`) instead of importing them, so no import cycle forms. */
+  lazyWorkflows: boolean;
   /** Whether this agent imports the shared project memory. */
   memory: boolean;
 }
@@ -67,4 +112,5 @@ export interface ParsedProject {
   /** The single project-wide memory config, present only when defined AND used. */
   memory?: ResolvedMemory;
   agents: ResolvedAgent[];
+  workflows: ResolvedWorkflow[];
 }
