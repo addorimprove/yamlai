@@ -50,17 +50,17 @@ export interface ResolvedWorkflowRef {
   exportName: string;
 }
 
-/** A leaf step target inside a workflow (an agent or a tool). */
+/** A leaf step target inside a workflow (an agent, a tool, or a custom step). */
 export interface ResolvedStepRef {
-  kind: 'agent' | 'tool';
+  kind: 'agent' | 'tool' | 'step';
   id: string;
   exportName: string;
 }
 
-/** One workflow step: a single agent/tool, or a parallel block of leaf steps. */
+/** One workflow step: a single agent/tool/step, or a parallel block of leaf steps. */
 export interface ResolvedWorkflowStep {
-  kind: 'agent' | 'tool' | 'parallel';
-  /** Set when kind is 'agent' | 'tool'. */
+  kind: 'agent' | 'tool' | 'step' | 'parallel';
+  /** Set when kind is 'agent' | 'tool' | 'step'. */
   ref?: ResolvedStepRef;
   /** Set when kind is 'parallel' (always length >= 2). */
   children?: ResolvedStepRef[];
@@ -79,6 +79,8 @@ export interface ResolvedWorkflow {
   agents: ResolvedWorkflowRef[];
   /** Distinct tools referenced anywhere in this workflow, in first-seen order (for imports + copy). */
   tools: ResolvedTool[];
+  /** Distinct custom steps referenced in this workflow, first-seen order (for imports + verbatim copy). */
+  stepFiles: ResolvedTool[];
 }
 
 export interface ResolvedAgent {
