@@ -39,6 +39,7 @@ export const MemorySchema = z.preprocess(
 export const ConfigSchema = z.object({
   name: z.string().min(1),
   agents: z.array(z.string().min(1)).min(1),
+  workflows: z.array(z.string().min(1)).default([]),
   logger: z
     .object({ level: LogLevelSchema.default('info') })
     .default({ level: 'info' }),
@@ -69,7 +70,30 @@ export const ModelSchema = z.object({
   max_tokens: z.number().int().positive().optional(),
 });
 
+// A single workflow step: exactly one of agent/tool/parallel — enforced in the
+// parser (so the message is aggregated into ParseError, not a raw Zod union error).
+// `input`/`output` are raw primitive-field maps compiled by zod-compile.ts.
+const WorkflowLeafSchema = z.object({
+  agent: z.string().min(1).optional(),
+  tool: z.string().min(1).optional(),
+});
+
+const WorkflowStepSchema = z.object({
+  agent: z.string().min(1).optional(),
+  tool: z.string().min(1).optional(),
+  parallel: z.array(WorkflowLeafSchema).optional(),
+});
+
+export const WorkflowSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().default(''),
+  input: z.record(z.string(), z.unknown()).default({}),
+  output: z.record(z.string(), z.unknown()).default({}),
+  steps: z.array(WorkflowStepSchema).min(1),
+});
+
 export type ConfigInput = z.infer<typeof ConfigSchema>;
 export type AgentInput = z.infer<typeof AgentSchema>;
 export type ModelInput = z.infer<typeof ModelSchema>;
 export type MemoryInput = z.infer<typeof MemorySchema>;
+export type WorkflowInput = z.infer<typeof WorkflowSchema>;
