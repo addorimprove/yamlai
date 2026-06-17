@@ -71,17 +71,19 @@ export const ModelSchema = z.object({
   max_tokens: z.number().int().positive().optional(),
 });
 
-// A single workflow step: exactly one of agent/tool/parallel — enforced in the
-// parser (so the message is aggregated into ParseError, not a raw Zod union error).
-// `input`/`output` are raw primitive-field maps compiled by zod-compile.ts.
+// A single workflow step: exactly one of agent/tool/step/parallel — enforced in
+// the parser (so the message is aggregated into ParseError, not a raw Zod union
+// error). `input`/`output` are raw primitive-field maps compiled by zod-compile.ts.
 const WorkflowLeafSchema = z.object({
   agent: z.string().min(1).optional(),
   tool: z.string().min(1).optional(),
+  step: z.string().min(1).optional(),
 });
 
 const WorkflowStepSchema = z.object({
   agent: z.string().min(1).optional(),
   tool: z.string().min(1).optional(),
+  step: z.string().min(1).optional(),
   parallel: z.array(WorkflowLeafSchema).optional(),
 });
 

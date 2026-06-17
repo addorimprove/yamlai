@@ -34,3 +34,16 @@ test('WorkflowSchema defaults input/output to empty objects', () => {
   assert.deepEqual(wf.input, {});
   assert.deepEqual(wf.output, {});
 });
+
+test('WorkflowSchema accepts a step leaf (plain and parallel child)', () => {
+  const wf = WorkflowSchema.parse({
+    steps: [
+      { step: 'rephrase' },
+      { parallel: [{ step: 'a' }, { tool: 'b' }] },
+    ],
+  });
+  assert.equal(wf.steps.length, 2);
+  // `step` must survive parsing (not be stripped as an unknown key).
+  assert.equal(wf.steps[0].step, 'rephrase');
+  assert.equal(wf.steps[1].parallel?.[0].step, 'a');
+});
