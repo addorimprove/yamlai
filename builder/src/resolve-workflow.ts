@@ -310,7 +310,9 @@ class WorkflowResolver {
     }
     const exportName = toExportName(id);
     if (!fileExportsName(this.ctx.rootDir, relPath, exportName)) {
-      this.issue(`${relPath} must export \`${exportName}\` (a named export matching the ${kind} id \`${id}\`)`);
+      // Name the source id only when it isn't already the export name (kebab/snake ids).
+      const detail = id === exportName ? '' : ` (the camelCase of ${kind} id \`${id}\`)`;
+      this.issue(`${relPath} must export \`${exportName}\`${detail}`);
       return undefined;
     }
     return exportName;

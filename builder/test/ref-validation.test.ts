@@ -39,7 +39,14 @@ test('invalidExportIdReason rejects a leading-digit identifier', () => {
 });
 
 test('invalidExportIdReason rejects a separators-only id (empty export name)', () => {
-  assert.match(invalidExportIdReason('--')!, /empty export name/);
+  assert.match(invalidExportIdReason('--')!, /produces an empty export name/);
+});
+
+test('invalidExportIdReason shows the camelCase form only when it differs from the id', () => {
+  // kebab id: the export name is non-obvious, so surface it
+  assert.match(invalidExportIdReason('2nd-flow')!, /id `2nd-flow` \(export name `2ndFlow`\)/);
+  // id already equals its export name: don't repeat it
+  assert.equal(invalidExportIdReason('delete'), 'id `delete` is a reserved word');
 });
 
 test('invalidExportIdReason rejects a reserved word', () => {
@@ -98,6 +105,17 @@ test('rejects a workflow tool file with a mismatched export', () => {
   assert.throws(() => parseProject(dir), /tools\/mytool\.ts must export `mytool`/);
 });
 
+test('names the source id in the export error only for a kebab/snake id', () => {
+  const dir = base({
+    'tools/merge-answers.ts': 'export const wrong = {};\n',
+    'workflow/w.yaml': 'steps:\n  - agent: a\n  - tool: merge-answers\n',
+  });
+  assert.throws(
+    () => parseProject(dir),
+    /must export `mergeAnswers` \(the camelCase of tool id `merge-answers`\)/,
+  );
+});
+
 test('rejects a condition file with a mismatched export', () => {
   const dir = base({
     'workflow/condition/good.ts': 'export const notGood = async () => true;\n',
@@ -139,7 +157,7 @@ test('rejects a workflow id that yields an illegal identifier', () => {
     'model/m.yaml': MODEL,
     'workflow/2nd-flow.yaml': 'steps:\n  - agent: a\n',
   });
-  assert.throws(() => parseProject(dir), /workflow id `2nd-flow` yields `2ndFlow`/);
+  assert.throws(() => parseProject(dir), /workflow id `2nd-flow` \(export name `2ndFlow`\) is not a valid/);
 });
 
 test('rejects an agent id that yields a reserved word', () => {
@@ -149,7 +167,7 @@ test('rejects an agent id that yields a reserved word', () => {
     'prompt/p.md': PROMPT,
     'model/m.yaml': MODEL,
   });
-  assert.throws(() => parseProject(dir), /agent id `delete` yields `delete`, which is a reserved word/);
+  assert.throws(() => parseProject(dir), /agent id `delete` is a reserved word/);
 });
 
 test('rejects a separators-only workflow id (empty export name)', () => {
@@ -160,7 +178,7 @@ test('rejects a separators-only workflow id (empty export name)', () => {
     'model/m.yaml': MODEL,
     'workflow/--.yaml': 'steps:\n  - agent: a\n',
   });
-  assert.throws(() => parseProject(dir), /workflow id `--` has no identifier characters/);
+  assert.throws(() => parseProject(dir), /workflow id `--` produces an empty export name/);
 });
 
 test('rejects a workflow tool id that yields an illegal identifier', () => {
@@ -168,5 +186,5 @@ test('rejects a workflow tool id that yields an illegal identifier', () => {
     'tools/2nd.ts': 'export const x = {};\n',
     'workflow/w.yaml': 'steps:\n  - agent: a\n  - tool: 2nd\n',
   });
-  assert.throws(() => parseProject(dir), /tool id `2nd` yields `2nd`, which is not a valid/);
+  assert.throws(() => parseProject(dir), /tool id `2nd` is not a valid/);
 });

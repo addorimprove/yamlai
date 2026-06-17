@@ -98,7 +98,9 @@ export function resolveAgent(
     }
     const exportName = toExportName(toolId);
     if (!fileExportsName(ctx.rootDir, toolPath, exportName)) {
-      ctx.addIssue(agentPath, `${toolPath} must export \`${exportName}\` (a named export matching the tool id \`${toolId}\`)`);
+      // Name the source id only when it isn't already the export name (kebab/snake ids).
+      const detail = toolId === exportName ? '' : ` (the camelCase of tool id \`${toolId}\`)`;
+      ctx.addIssue(agentPath, `${toolPath} must export \`${exportName}\`${detail}`);
       continue;
     }
     if (tools.some((t) => t.id === toolId)) continue;

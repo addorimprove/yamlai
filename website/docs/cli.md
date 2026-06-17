@@ -34,8 +34,10 @@ npx @addorimprove/yamlai validate ./my-project --json
 `validate` runs the same parser as `generate` (strict — unknown/typo'd keys are
 errors), but emits no files. Beyond schema checks it verifies the structural
 contracts codegen relies on — referenced `tool:`/`step:`/`condition` files exist
-**and export the camelCased id**, and every id forms a [valid identifier](./reference/config.md#id-naming) —
-so a green `validate` means the generated project compiles rather than failing at `tsc`.
+**and export the camelCased id**, and every id forms a [valid identifier](./reference/config.md#id-naming).
+These would otherwise emit code that fails to parse. `validate` does **not**
+type-check, though: adjacent-step input/output mismatches are caught later by the
+generated project's strict `tsc`, by design.
 
 | Outcome | Text output | `--json` output | Exit |
 |---|---|---|---|

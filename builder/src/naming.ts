@@ -30,13 +30,16 @@ const RESERVED_WORDS = new Set([
 export function invalidExportIdReason(id: string): string | null {
   const name = toExportName(id);
   if (name === '') {
-    return `id \`${id}\` has no identifier characters (yields an empty export name)`;
+    return `id \`${id}\` produces an empty export name`;
   }
+  // Show the camelCase form only when it differs from the id, so a kebab id like
+  // `2nd-flow` explains itself while `delete` doesn't read as "delete yields delete".
+  const subject = name === id ? `id \`${id}\`` : `id \`${id}\` (export name \`${name}\`)`;
   if (!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name)) {
-    return `id \`${id}\` yields \`${name}\`, which is not a valid JavaScript identifier`;
+    return `${subject} is not a valid JavaScript identifier`;
   }
   if (RESERVED_WORDS.has(name)) {
-    return `id \`${id}\` yields \`${name}\`, which is a reserved word`;
+    return `${subject} is a reserved word`;
   }
   return null;
 }
