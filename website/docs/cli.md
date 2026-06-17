@@ -19,6 +19,27 @@ npx @addorimprove/yamlai ./my-project
 npx @addorimprove/yamlai ./my-project ./out --force
 ```
 
+## `validate`
+
+Check that a project is well-formed without generating any code. Useful in CI.
+
+```bash
+# human-readable summary; non-zero exit on problems
+npx @addorimprove/yamlai validate ./my-project
+
+# machine-readable result for CI tooling
+npx @addorimprove/yamlai validate ./my-project --json
+```
+
+`validate` runs the same parser as `generate` (strict — unknown/typo'd keys are
+errors), but emits no files.
+
+| Outcome | Text output | `--json` output | Exit |
+|---|---|---|---|
+| Valid | `✓ valid: N agents, M workflows` (stdout) | `{"ok":true,"issues":[]}` | `0` |
+| Validation errors | aggregated `file: message` lines (stderr) | `{"ok":false,"issues":[{"file","message"}]}` | `1` |
+| Unexpected error | error message (stderr) | `{"ok":false,"error":"..."}` | `2` |
+
 ## Arguments
 
 | Argument | Required | Description |
@@ -40,6 +61,9 @@ Found 2 problem(s):
   agent/support-agent.yaml: references unknown model "gpt-5-mega"
   model/gpt-5-mini.yaml: missing required field "provider"
 ```
+
+Unknown or misspelled keys (in `config.yaml`, agent/model/workflow files) are now
+rejected rather than silently ignored — the same check `validate` runs.
 
 ## Exit codes
 
