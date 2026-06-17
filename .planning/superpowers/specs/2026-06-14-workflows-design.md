@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-14 (rescoped 2026-06-17)
 **Feature:** Workflows for the YAML Agent Builder (roadmap #15)
-**Status:** brainstorming — minimal v1 (sequential + parallel + agent attachment); fuller control flow (loops/`foreach`/`branch`/conditions) still deferred (see end)
+**Status:** implemented (v1) — sequential + parallel + agent attachment; fuller control flow (loops/`foreach`/`branch`/conditions) still deferred (see end)
 
 ---
 
@@ -14,10 +14,15 @@
 - Composition: **sequential** (`.then`) and **parallel** (`.parallel`) only.
 - Workflow `input`/`output` via YAML→Zod (primitives).
 - Workflows registered on the Mastra instance via `config.yaml → workflows: [<id>]`.
+- **Agent attachment** via `agent.workflows: [<id>]` → `new Agent({ workflows })`. **Cycles are
+  allowed**: when an attached workflow runs the attaching agent (directly or transitively), the
+  `workflows` field is emitted as a lazy thunk off the Mastra instance
+  (`workflows: ({ mastra }) => ({ compareAnswers: mastra!.getWorkflow("compareAnswers") })`) to
+  avoid an agent⇄workflow static import cycle. Acyclic attachments use a plain static import + object.
 
 **Deferred** (all researched + engine-verified — see "Deferred" at the end): custom `step/`
 resource, `schema/` escape hatch, `branch` / `loop` / `foreach`, conditions (`when:`/`when_step:`),
-human-in-the-loop (suspend/resume), and agent attachment (`agent.workflows`) + its import-cycle handling.
+and human-in-the-loop (suspend/resume).
 
 > **Why this is still expressive:** with no custom-step resource, **tools are the glue.** A tool
 > has arbitrary in/out schemas, so it does the `{text}→{prompt}` reshaping between agents and the
@@ -249,6 +254,10 @@ shape it with a glue tool.
   agents/tools at that workflow module's scope — extending the existing collision check.
 - **Data-flow types are NOT checked at parse time** — step-to-step shape mismatches surface when
   `tsc` runs on the generated project (consistent with the existing "typecheck the output" approach).
+- The generated `tsconfig.json` sets **`strictFunctionTypes: false`** (keeping `strict: true`) for
+  Mastra agent-step compatibility: `createStep(agent)` produces a step whose `execute` reads a
+  concrete `{ prompt }` input, which `strictFunctionTypes` would reject contravariantly in the
+  `.then()` chain. Real step-to-step IO mismatches are still caught on the step `inputSchema`/`outputSchema`.
 
 ---
 
@@ -291,10 +300,6 @@ Kept here as the roadmap for the next increments (all checked against @mastra/co
 - **Human-in-the-loop** — a suspending step (`suspendSchema`/`resumeSchema` + `suspend()`); run
   pauses with `status: 'suspended'`, resumed via `run.resume(...)`. Needs storage. No new YAML —
   it's a property of a (deferred) custom step.
-- **Agent attachment** — `agent.workflows: [<id>]` → `new Agent({ workflows })`. Brings the
-  agent⇄workflow import-cycle case (handle with the existing `findCyclicNodes` + lazy-thunk
-  machinery). Deferred so v1 sidesteps cycles entirely (workflows are registry-only, callable via
-  the API/playground).
 
 ---
 

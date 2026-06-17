@@ -6,7 +6,9 @@ title: Examples
 
 A complete project — YAML in, runnable Mastra TypeScript out. The support agent
 uses memory, an `echo-tool`, and delegates to a `research-agent` (which
-self-delegates to recurse on sub-questions).
+self-delegates to recurse on sub-questions). It also defines two
+[workflows](./reference/workflow.md) — a sequential `research-flow` and a parallel
+`compare-answers` — with `rephrase`/`merge-answers` as the glue tools between steps.
 
 ## Input
 
@@ -21,8 +23,13 @@ examples/
 ├── prompt/
 │   ├── support-prompt.md
 │   └── research-prompt.md
-└── tools/
-    └── echo-tool.ts
+├── tools/
+│   ├── echo-tool.ts
+│   ├── rephrase.ts          # glue: { text } -> { prompt }
+│   └── merge-answers.ts     # merge: { 'research-agent': {text}, 'support-agent': {text} } -> { comparison }
+└── workflow/
+    ├── research-flow.yaml    # sequential
+    └── compare-answers.yaml  # parallel fan-out + merge
 ```
 
 ```yaml title="config.yaml"
@@ -30,7 +37,7 @@ name: my-mastra-app
 agents:
   - support-agent
   - research-agent
-workflows:                 # preview of roadmap #15 — ignored until the feature lands
+workflows:                 # registered on the Mastra instance (workflow/<id>.yaml)
   - research-flow          # sequential: research-agent -> rephrase(tool) -> support-agent
   - compare-answers        # parallel:   [research-agent | support-agent] -> merge-answers(tool)
 logger:
@@ -63,6 +70,8 @@ tools:
   - echo-tool
 agents:
   - research-agent
+workflows:
+  - compare-answers          # compare-answers runs support-agent → agent⇄workflow cycle
 ```
 
 ```yaml title="agent/research-agent.yaml"
@@ -130,8 +139,13 @@ my-mastra-app/
     ├── agents/
     │   ├── support-agent.ts
     │   └── research-agent.ts
+    ├── workflows/
+    │   ├── research-flow.ts
+    │   └── compare-answers.ts
     ├── tools/
-    │   └── echo-tool.ts
+    │   ├── echo-tool.ts
+    │   ├── rephrase.ts          # copied verbatim (glue tool)
+    │   └── merge-answers.ts     # copied verbatim (merge tool)
     └── utils/
         └── memory.ts
 ```
@@ -142,9 +156,12 @@ import { PinoLogger } from '@mastra/loggers';
 import { LibSQLStore } from '@mastra/libsql';
 import { supportAgent } from './agents/support-agent';
 import { researchAgent } from './agents/research-agent';
+import { researchFlow } from './workflows/research-flow';
+import { compareAnswers } from './workflows/compare-answers';
 
 export const mastra = new Mastra({
   agents: { supportAgent, researchAgent },
+  workflows: { researchFlow, compareAnswers },
   storage: new LibSQLStore({ id: 'mastra-storage', url: "file:./mastra.db" }),
   logger: new PinoLogger({ name: 'Mastra', level: "info" }),
 });
@@ -165,13 +182,19 @@ Use the echo-tool when you need to repeat the user's input back to them.`,
   model: [{ model: "openai/gpt-5-mini", modelSettings: { temperature: 0.7, maxOutputTokens: 2048 } }],
   tools: { echoTool },
   agents: { researchAgent },
+  // compare-answers runs support-agent (a parallel step), so this attachment is a
+  // cycle — emitted lazily off the Mastra instance to avoid a static import cycle.
+  workflows: ({ mastra }) => ({ compareAnswers: mastra!.getWorkflow("compareAnswers") }),
   memory,
 });
 ```
 
 The model id inlines to the Model Router string plus `modelSettings`; the prompt
 inlines into `instructions`; `echo-tool` and the `research-agent` sub-agent are
-imported by camelCase name; `memory: true` wires in the shared `memory` util.
+imported by camelCase name; `memory: true` wires in the shared `memory` util. The
+attached `compare-answers` workflow forms an agent⇄workflow cycle, so its
+`workflows` field is emitted as a lazy thunk off `mastra` — see
+[workflow reference → Attaching workflows to an agent](./reference/workflow.md#attaching-workflows-to-an-agent-agentworkflows).
 
 ```typescript title="src/mastra/agents/research-agent.ts"
 import { Agent } from '@mastra/core/agent';
@@ -220,28 +243,14 @@ export OPENAI_API_KEY=sk-...
 npm run dev
 ```
 
-## Preview: workflows (roadmap #15)
+## Workflows
 
-:::note Not generated yet
-The `workflows:` key in `config.yaml` and the files below are a **preview of the
-planned `workflow/` resource** ([roadmap #15](https://mastra.ai/docs/workflows/overview)).
-The generator ignores them today — they show the intended YAML shape, not a
-shipped feature. The glue tools (`rephrase`, `merge-answers`) are ordinary
-[tools](./reference/tools.md): in the planned design, tools double as the
-shaping/merge units between steps.
-:::
-
-The preview adds these files to `examples/`:
-
-```text
-examples/
-├── tools/
-│   ├── rephrase.ts          # glue: { text } -> { prompt }
-│   └── merge-answers.ts     # merge: { 'research-agent': {text}, 'support-agent': {text} } -> { comparison }
-└── workflow/
-    ├── research-flow.yaml    # sequential
-    └── compare-answers.yaml  # parallel fan-out + merge
-```
+The two `workflow/` files compile to `createWorkflow(...).then()/.parallel().commit()`
+chains and register on the Mastra instance (see [index.ts](#output) above). The glue
+tools `rephrase`/`merge-answers` are ordinary [tools](./reference/tools.md) — tools
+double as the shaping/merge units between steps. For the full mapping (step kinds,
+`input`/`output` → Zod, attachment, gotchas) see the
+[workflow reference](./reference/workflow.md).
 
 ```yaml title="workflow/research-flow.yaml"
 # id = filename (research-flow). Steps run in order via .then().
@@ -257,6 +266,18 @@ steps:
   - agent: support-agent       # { prompt } -> { text }
 ```
 
+```typescript title="src/mastra/workflows/research-flow.ts"
+export const researchFlow = createWorkflow({
+  id: 'research-flow',
+  inputSchema: z.object({ prompt: z.string() }),
+  outputSchema: z.object({ text: z.string() }),
+})
+  .then(createStep(researchAgent))
+  .then(createStep(rephrase))
+  .then(createStep(supportAgent))
+  .commit();
+```
+
 ```yaml title="workflow/compare-answers.yaml"
 name: Compare Answers
 description: Ask the research and support agents the same question in parallel, then merge.
@@ -269,4 +290,15 @@ steps:
       - agent: research-agent
       - agent: support-agent
   - tool: merge-answers        # { 'research-agent': {text}, 'support-agent': {text} } -> { comparison }
+```
+
+```typescript title="src/mastra/workflows/compare-answers.ts"
+export const compareAnswers = createWorkflow({
+  id: 'compare-answers',
+  inputSchema: z.object({ prompt: z.string() }),
+  outputSchema: z.object({ comparison: z.string() }),
+})
+  .parallel([createStep(researchAgent), createStep(supportAgent)])
+  .then(createStep(mergeAnswers))
+  .commit();
 ```

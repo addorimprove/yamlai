@@ -11,6 +11,7 @@ What you can generate from YAML today, and what's planned. Maps [Mastra](https:/
 ```yaml title="config.yaml"
 name: my-mastra-app
 agents: [support-agent]      # register agents
+workflows: [research-flow]   # register workflows (workflow/<id>.yaml)
 logger: { level: info }      # logger
 storage:                     # storage (libsql)
   type: libsql
@@ -30,6 +31,7 @@ instructions: support-prompt  # prompt/<id>.md
 model: gpt-5-mini             # model/<id>.yaml
 tools: [echo-tool]            # tools/<id>.ts
 agents: [research-agent]      # delegate to other agents
+workflows: [research-flow]    # attach workflows the agent can invoke
 ```
 
 | Feature | Where | Pattern |
@@ -43,6 +45,7 @@ agents: [research-agent]      # delegate to other agents
 | Storage | `config.yaml` → `storage` (libsql) | declarative |
 | Memory | `config.yaml` → `memory` + agent `memory: true` | declarative |
 | Sub-agents | agent `agents: [<id>]` | declarative |
+| Workflows | `workflow/<id>.yaml` + `config.yaml` → `workflows: [<id>]`; agent `workflows: [<id>]` | declarative |
 
 ## Coming ⏳
 
@@ -55,7 +58,6 @@ Planned YAML, roughly in priority order. **Tier:** A = declarative/low-effort ·
 | 12 | Run limits | agent `max_steps`, `stop_when` | declarative | A |
 | 13 | Metadata | agent `metadata: { team: support }` | declarative | A |
 | 14 | Observability / tracing | `config.yaml` → `observability` | declarative | A |
-| 15 | Workflows | `workflow/<id>.yaml` (declarative graph: agent/tool steps, sequential + parallel; tools as glue) | declarative | A |
 | 16 | Structured output | `schema/<id>.ts` (Zod) + agent `output: <id>` | author-as-code | B |
 | 17 | MCP tool servers | `mcp/<id>.yaml` (`command`/`url`) | declarative | B |
 | 18 | Custom processors / scorers | `processor/<id>.ts`, `scorer/<id>.ts` | author-as-code | B |
@@ -68,6 +70,5 @@ Planned YAML, roughly in priority order. **Tier:** A = declarative/low-effort ·
 
 ### Next up
 
-1. **Workflows** (#15) — the tools pipeline applied to a `workflow/` folder.
-2. **Guardrails / processors** (#10) — small declarative catalog, big production value (PII, moderation, injection).
-3. **Structured output** (#16) — once the YAML→Zod schema approach is settled.
+1. **Guardrails / processors** (#10) — small declarative catalog, big production value (PII, moderation, injection).
+2. **Structured output** (#16) — once the YAML→Zod schema approach is settled.
