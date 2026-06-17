@@ -10,6 +10,8 @@ import { runValidate } from '../scripts/validate.js';
 
 // examples/ lives at the repo root (builder/../examples).
 const EXAMPLES = fileURLToPath(new URL('../../examples', import.meta.url));
+// Builder package root (parent of test/), so execFileSync resolves scripts/ regardless of cwd.
+const BUILDER_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 function makeProject(files: Record<string, string>): string {
   const dir = mkdtempSync(join(tmpdir(), 'yamlai-validate-'));
@@ -76,7 +78,7 @@ test('CLI: `validate <examples>` exits 0 and prints a summary', () => {
   const out = execFileSync(
     'node',
     ['--import', 'tsx', 'scripts/cli.ts', 'validate', EXAMPLES],
-    { encoding: 'utf8' },
+    { encoding: 'utf8', cwd: BUILDER_ROOT },
   );
   assert.match(out, /✓ valid:/);
 });
@@ -94,7 +96,7 @@ test('CLI: `validate --json` on a broken project exits 1 with ok:false', () => {
     stdout = execFileSync(
       'node',
       ['--import', 'tsx', 'scripts/cli.ts', 'validate', dir, '--json'],
-      { encoding: 'utf8' },
+      { encoding: 'utf8', cwd: BUILDER_ROOT },
     );
   } catch (e: any) {
     code = e.status;
