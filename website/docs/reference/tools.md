@@ -35,9 +35,9 @@ export const echoTool = createTool({
 | `outputSchema` | Zod | No | Validates output. |
 | `execute` | function | Yes | `(inputData) => output`; may be `async`. |
 
-## Generated output
+## Generates `src/mastra/tools/<id>.ts`
 
-Copied as-is to `src/mastra/tools/<id>.ts` (once, even if shared by multiple agents). Each referencing agent imports it:
+Copied as-is (once, even if shared by multiple agents). Each referencing agent imports it:
 
 ```typescript
 import { echoTool } from '../tools/echo-tool';

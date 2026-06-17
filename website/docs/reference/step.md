@@ -56,9 +56,9 @@ steps:
 
 The referenced `workflow/steps/<id>.ts` must exist and export the camelCased id — `validate` checks both.
 
-## Generated output
+## Generates `src/mastra/workflows/steps/<id>.ts`
 
-Copied as-is to `src/mastra/workflows/steps/<id>.ts` (once, even if shared across workflows). Because an authored `createStep({...})` **is** a `Step`, the workflow uses it **directly** — no `createStep()` wrapper (unlike `agent:`/`tool:`):
+Copied as-is (once, even if shared across workflows). Because an authored `createStep({...})` **is** a `Step`, the workflow uses it **directly** — no `createStep()` wrapper (unlike `agent:`/`tool:`):
 
 ```typescript title="src/mastra/workflows/research-flow.ts (generated)"
 import { rephrase } from './steps/rephrase';

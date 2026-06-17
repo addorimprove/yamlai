@@ -278,4 +278,4 @@ The generated project is fully strict (`strict: true`, incl. `strictFunctionType
 
 ## Not in this version
 
-Control flow beyond sequential `.then`, `.parallel`, and `loop` (`.dountil`/`.dowhile`/`.foreach`) is deferred: `branch`/`when_step:` conditions, `parallel`/nested loops **inside** a loop body, a custom `schema/` escape hatch, and human-in-the-loop (suspend/resume). Gen-time chain/condition shape checking also stays deferred — shape mismatches surface at the generated project's strict `tsc`. See the **Deferred** section of the workflows design spec (`.planning/superpowers/specs/2026-06-14-workflows-design.md`) for the full list and engine notes.
+Control flow beyond sequential `.then`, `.parallel`, and `loop` (`.dountil`/`.dowhile`/`.foreach`) is deferred: `branch`/`when_step:` conditions, `parallel`/nested loops **inside** a loop body, a custom `schema/` escape hatch, and human-in-the-loop (suspend/resume). Gen-time chain/condition shape checking also stays deferred — shape mismatches surface at the generated project's strict `tsc`.

@@ -49,9 +49,9 @@ steps:
 
 The referenced `workflow/condition/<id>.ts` must exist and export the camelCased id — `validate` checks both.
 
-## Generated output
+## Generates `src/mastra/workflows/condition/<id>.ts`
 
-Copied as-is to `src/mastra/workflows/condition/<id>.ts` (once, even if shared across loops). The
+Copied as-is (once, even if shared across loops). The
 workflow imports it relative to itself and passes it to the loop method:
 
 ```typescript title="src/mastra/workflows/<id>.ts (generated)"
