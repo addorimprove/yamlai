@@ -1,13 +1,13 @@
 import { createStep } from '@mastra/core/workflows';
 import { z } from 'zod';
 
-// Glue step: reshape a research agent's { text } into the { prompt } the support agent reads.
+// Glue step: reshape the writer's { text } into the { prompt } the editor reads.
 // Authored as a step (not a tool) so `execute`'s input is type-checked against inputSchema.
-export const rephrase = createStep({
-  id: 'rephrase',
+export const brief = createStep({
+  id: 'brief',
   inputSchema: z.object({ text: z.string() }),
   outputSchema: z.object({ prompt: z.string() }),
   execute: async ({ inputData }) => ({
-    prompt: `Using these research notes, answer the user clearly:\n\n${inputData.text}`,
+    prompt: `Revise this draft for clarity and flow:\n\n${inputData.text}`,
   }),
 });

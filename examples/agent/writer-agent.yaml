@@ -1,0 +1,14 @@
+name: Writer
+description: Drafts content for the user.
+instructions: writer-prompt
+model: gpt-5-mini
+memory: true
+tools:
+  - word-count
+agents:
+  - editor-agent
+# Attach a workflow the agent can invoke. `compare-drafts` runs `writer-agent`
+# itself (one of its parallel steps), so this is an agent⇄workflow cycle — emitted
+# lazily via `mastra.getWorkflow` (see workflows design, "cycles allowed").
+workflows:
+  - compare-drafts

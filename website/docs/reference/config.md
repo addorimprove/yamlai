@@ -7,10 +7,10 @@ title: config.yaml
 The project root file — one per project.
 
 ```yaml
-name: my-mastra-app
+name: content-assistant
 agents:
-  - support-agent
-  - research-agent
+  - writer-agent
+  - editor-agent
 logger:
   level: info             # debug | info | warn | error
 storage:
@@ -34,17 +34,17 @@ storage:
 import { Mastra } from '@mastra/core/mastra';
 import { PinoLogger } from '@mastra/loggers';
 import { LibSQLStore } from '@mastra/libsql';
-import { supportAgent } from './agents/support-agent';
-import { researchAgent } from './agents/research-agent';
+import { writerAgent } from './agents/writer-agent';
+import { editorAgent } from './agents/editor-agent';
 
 export const mastra = new Mastra({
-  agents: { supportAgent, researchAgent },
+  agents: { writerAgent, editorAgent },
   storage: new LibSQLStore({ id: 'mastra-storage', url: 'file:./mastra.db' }),
   logger: new PinoLogger({ name: 'Mastra', level: 'info' }),
 });
 ```
 
-Only agents are registered. `storage` is omitted entirely if absent. Kebab-case ids → camelCase exports (`support-agent` → `supportAgent`).
+Only agents are registered. `storage` is omitted entirely if absent. Kebab-case ids → camelCase exports (`writer-agent` → `writerAgent`).
 
 ## Id naming
 

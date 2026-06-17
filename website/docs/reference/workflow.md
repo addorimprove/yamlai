@@ -4,18 +4,18 @@ title: "workflow/<id>.yaml"
 
 # workflow/&lt;id&gt;.yaml
 
-One file per workflow — a declarative graph of `agent`/`tool`/`step` steps that run **sequentially** (`.then`), in **parallel** (`.parallel`), and/or in a **loop** (`.dountil`/`.dowhile`/`.foreach`). The id is the filename (`workflow/research-flow.yaml` → id `research-flow`, export `researchFlow`). Also list the id in [config.yaml](./config.md) `workflows:`.
+One file per workflow — a declarative graph of `agent`/`tool`/`step` steps that run **sequentially** (`.then`), in **parallel** (`.parallel`), and/or in a **loop** (`.dountil`/`.dowhile`/`.foreach`). The id is the filename (`workflow/draft-flow.yaml` → id `draft-flow`, export `draftFlow`). Also list the id in [config.yaml](./config.md) `workflows:`.
 
 ```yaml
-description: Research a question, then have the support agent answer from the notes.
+description: Draft the content, then have the editor refine it.
 
 input:  { prompt: string }     # → z.object({ prompt: z.string() })
 output: { text: string }       # → z.object({ text: z.string() })
 
 steps:
-  - agent: research-agent      # { prompt } -> { text }   → agent/research-agent.yaml
-  - step:  rephrase            # { text }  -> { prompt }   → workflow/steps/rephrase.ts (typed glue step)
-  - agent: support-agent       # { prompt } -> { text }
+  - agent: writer-agent      # { prompt } -> { text }   → agent/writer-agent.yaml
+  - step:  brief             # { text }  -> { prompt }   → workflow/steps/brief.ts (typed glue step)
+  - agent: editor-agent      # { prompt } -> { text }
 ```
 
 ## Fields
@@ -62,69 +62,69 @@ Steps run in declaration order; each step's output is the next step's input. The
 
 ## Worked example — sequential
 
-`input { prompt }` → `agent: research-agent` → `step: rephrase` (typed glue, `{ text }`→`{ prompt }`) → `agent: support-agent` → `output { text }`.
+`input { prompt }` → `agent: writer-agent` → `step: brief` (typed glue, `{ text }`→`{ prompt }`) → `agent: editor-agent` → `output { text }`.
 
-```yaml title="workflow/research-flow.yaml"
+```yaml title="workflow/draft-flow.yaml"
 input:  { prompt: string }
 output: { text: string }
 steps:
-  - agent: research-agent
-  - step:  rephrase
-  - agent: support-agent
+  - agent: writer-agent
+  - step:  brief
+  - agent: editor-agent
 ```
 
-Generates `src/mastra/workflows/research-flow.ts` — note `rephrase` is a [step](./step.md), so it's used **directly** while the agents are wrapped in `createStep(...)`:
+Generates `src/mastra/workflows/draft-flow.ts` — note `brief` is a [step](./step.md), so it's used **directly** while the agents are wrapped in `createStep(...)`:
 
 ```typescript
 import { createWorkflow, createStep } from '@mastra/core/workflows';
 import { z } from 'zod';
-import { researchAgent } from '../agents/research-agent';
-import { supportAgent } from '../agents/support-agent';
-import { rephrase } from './steps/rephrase';
+import { writerAgent } from '../agents/writer-agent';
+import { editorAgent } from '../agents/editor-agent';
+import { brief } from './steps/brief';
 
-export const researchFlow = createWorkflow({
-  id: 'research-flow',
-  description: 'Research a question, then have the support agent answer from the notes.',
+export const draftFlow = createWorkflow({
+  id: 'draft-flow',
+  description: 'Draft the content, then have the editor refine it.',
   inputSchema: z.object({ prompt: z.string() }),
   outputSchema: z.object({ text: z.string() }),
 })
-  .then(createStep(researchAgent))
-  .then(rephrase)
-  .then(createStep(supportAgent))
+  .then(createStep(writerAgent))
+  .then(brief)
+  .then(createStep(editorAgent))
   .commit();
 ```
 
 ## Worked example — parallel
 
-`input { prompt }` → `parallel: [agent: research-agent, agent: support-agent]` → `tool: merge-answers` → `output { comparison }`. The merge tool runs after `.parallel([...])`, so its input is the keyed-by-step-id **record** — its `inputSchema` must be `z.record(z.string(), z.object({ text: z.string() }))`, not exact keys (see [Gotchas](#gotchas)).
+`input { prompt }` → `parallel: [agent: writer-agent, agent: editor-agent]` → `tool: merge-drafts` → `output { comparison }`. The merge tool runs after `.parallel([...])`, so its input is the keyed-by-step-id **record** — its `inputSchema` must be `z.record(z.string(), z.object({ text: z.string() }))`, not exact keys (see [Gotchas](#gotchas)).
 
-```yaml title="workflow/compare-answers.yaml"
+```yaml title="workflow/compare-drafts.yaml"
 input:  { prompt: string }
 output: { comparison: string }
 steps:
   - parallel:
-      - agent: research-agent
-      - agent: support-agent
-  - tool: merge-answers
+      - agent: writer-agent
+      - agent: editor-agent
+  - tool: merge-drafts
 ```
 
-Generates `src/mastra/workflows/compare-answers.ts`:
+Generates `src/mastra/workflows/compare-drafts.ts`:
 
 ```typescript
 import { createWorkflow, createStep } from '@mastra/core/workflows';
 import { z } from 'zod';
-import { researchAgent } from '../agents/research-agent';
-import { supportAgent } from '../agents/support-agent';
-import { mergeAnswers } from '../tools/merge-answers';
+import { writerAgent } from '../agents/writer-agent';
+import { editorAgent } from '../agents/editor-agent';
+import { mergeDrafts } from '../tools/merge-drafts';
 
-export const compareAnswers = createWorkflow({
-  id: 'compare-answers',
-  description: 'Ask the research and support agents the same question in parallel, then merge.',
+export const compareDrafts = createWorkflow({
+  id: 'compare-drafts',
+  description: 'Have the writer and editor each draft from the same brief, then merge.',
   inputSchema: z.object({ prompt: z.string() }),
   outputSchema: z.object({ comparison: z.string() }),
 })
-  .parallel([createStep(researchAgent), createStep(supportAgent)])
-  .then(createStep(mergeAnswers))
+  .parallel([createStep(writerAgent), createStep(editorAgent)])
+  .then(createStep(mergeDrafts))
   .commit();
 ```
 
@@ -153,7 +153,7 @@ Sub-keys:
 
 ### Worked example — single-leaf loop
 
-```yaml title="workflow/refine-loop.yaml"
+```yaml title="workflow/polish-loop.yaml"
 input:  { text: string, score: number }
 output: { text: string, score: number }
 steps:
@@ -163,14 +163,14 @@ steps:
       max_iterations: 5
 ```
 
-```typescript title="src/mastra/workflows/refine-loop.ts (generated)"
+```typescript title="src/mastra/workflows/polish-loop.ts (generated)"
 import { createWorkflow, createStep } from '@mastra/core/workflows';
 import { z } from 'zod';
 import { refine } from './steps/refine';
 import { goodEnough } from './condition/good-enough';
 
-export const refineLoop = createWorkflow({
-  id: 'refine-loop',
+export const polishLoop = createWorkflow({
+  id: 'polish-loop',
   inputSchema: z.object({ text: z.string(), score: z.number() }),
   outputSchema: z.object({ text: z.string(), score: z.number() }),
 })
@@ -183,7 +183,7 @@ export const refineLoop = createWorkflow({
 A `steps:` body is emitted as an **inline nested workflow** (a Mastra `Workflow` is itself a `Step`,
 so it can be the loop body). It needs `input:`/`output:` to type the nested workflow's schemas.
 
-```yaml title="workflow/draft-loop.yaml"
+```yaml title="workflow/revise-loop.yaml"
 input:  { text: string, score: number }
 output: { text: string, score: number }
 steps:
@@ -197,9 +197,9 @@ steps:
       max_iterations: 4
 ```
 
-```typescript title="src/mastra/workflows/draft-loop.ts (generated)"
+```typescript title="src/mastra/workflows/revise-loop.ts (generated)"
   .dountil(
-    createWorkflow({ id: 'draft-loop-loop-1', inputSchema: …, outputSchema: … })
+    createWorkflow({ id: 'revise-loop-loop-1', inputSchema: …, outputSchema: … })
       .then(refine)
       .then(score)
       .commit(),
@@ -223,49 +223,49 @@ List each workflow id under `workflows:` in [config.yaml](./config.md). Each is 
 
 ```yaml title="config.yaml"
 workflows:
-  - research-flow
-  - compare-answers
+  - draft-flow
+  - compare-drafts
 ```
 
 ```typescript title="src/mastra/index.ts (generated)"
-import { researchFlow } from './workflows/research-flow';
-import { compareAnswers } from './workflows/compare-answers';
+import { draftFlow } from './workflows/draft-flow';
+import { compareDrafts } from './workflows/compare-drafts';
 
 export const mastra = new Mastra({
-  agents: { researchAgent, supportAgent },
-  workflows: { researchFlow, compareAnswers },
+  agents: { writerAgent, editorAgent },
+  workflows: { draftFlow, compareDrafts },
   // …storage, logger…
 });
 ```
 
-Workflow-referenced tools (like `merge-answers`) are copied verbatim into `src/mastra/tools/`, deduped with per-agent tools; workflow-referenced [steps](./step.md) (like `rephrase`) are copied into `src/mastra/workflows/steps/`.
+Workflow-referenced tools (like `merge-drafts`) are copied verbatim into `src/mastra/tools/`, deduped with per-agent tools; workflow-referenced [steps](./step.md) (like `brief`) are copied into `src/mastra/workflows/steps/`.
 
 ## Attaching workflows to an agent (`agent.workflows`)
 
 Attach workflows so the agent's model can invoke them. Each id in [`agent/<id>.yaml`](./agent.md) `workflows:` must **also** be in [config.yaml](./config.md) `workflows:`:
 
-```yaml title="agent/support-agent.yaml"
+```yaml title="agent/writer-agent.yaml"
 workflows:
-  - compare-answers
+  - compare-drafts
 ```
 
 **Agent⇄workflow cycles are allowed.** If an attached workflow runs the attaching agent (directly or transitively), the field is emitted **lazily off the Mastra instance** — keyed by the workflow's export name, with a `mastra!` assertion — to avoid a static import cycle:
 
 ```typescript
 // cyclic attachment — no static import of the workflow in the agent file
-workflows: ({ mastra }) => ({ compareAnswers: mastra!.getWorkflow("compareAnswers") }),
+workflows: ({ mastra }) => ({ compareDrafts: mastra!.getWorkflow("compareDrafts") }),
 ```
 
-Acyclic attachments use a plain static import instead (`workflows: { researchFlow }`). Same lazy-thunk strategy as cyclic [sub-agents](./agent.md#sub-agents-agents).
+Acyclic attachments use a plain static import instead (`workflows: { draftFlow }`). Same lazy-thunk strategy as cyclic [sub-agents](./agent.md#sub-agents-agents).
 
 ## Gotchas
 
 The generated project is fully strict (`strict: true`, incl. `strictFunctionTypes`) on `@mastra/core` ≥1.43 — **adjacent step IO is type-checked at `tsc` time**, so most problems below fail the build, not just the run.
 
-1. **Step shapes must chain.** Each step's output is the next step's input; the builder never reshapes between them — insert a glue `tool:`/`step:` (like `rephrase`) to adapt. A mismatch fails `tsc`. The one exception: the declared `output:` is **not** checked against the last step, so keep it in sync by hand.
+1. **Step shapes must chain.** Each step's output is the next step's input; the builder never reshapes between them — insert a glue `tool:`/`step:` (like `brief`) to adapt. A mismatch fails `tsc`. The one exception: the declared `output:` is **not** checked against the last step, so keep it in sync by hand.
 2. **`input:` must match the first step.** An `agent:` first step reads `{ prompt: string }`, so `input:` must provide it. Omitting `input:` yields `z.object({})` and fails to compile.
 3. **After a `parallel`, the next step takes a record.** The result is keyed by each child's step id, typed `z.record(z.string(), <commonChildOutput>)` — the consumer must declare that record (not exact keys), and all children should share one output shape.
-4. **Tool `execute` signature.** A `tool:` receives input as its **first positional arg** — `execute: async (inputData) => …`. The older `async ({ context }) => …` compiles but `context` is `undefined` at runtime; match `tools/merge-answers.ts`. A [step](./step.md) avoids this — its `execute` is `async ({ inputData }) => …`, typed from `inputSchema`.
+4. **Tool `execute` signature.** A `tool:` receives input as its **first positional arg** — `execute: async (inputData) => …`. The older `async ({ context }) => …` compiles but `context` is `undefined` at runtime; match `tools/merge-drafts.ts`. A [step](./step.md) avoids this — its `execute` is `async ({ inputData }) => …`, typed from `inputSchema`.
 
 ## Not in this version
 

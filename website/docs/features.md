@@ -9,9 +9,9 @@ What you can generate from YAML today, and what's planned. Maps [Mastra](https:/
 ## Available now ✅
 
 ```yaml title="config.yaml"
-name: my-mastra-app
-agents: [support-agent]      # register agents
-workflows: [research-flow]   # register workflows (workflow/<id>.yaml)
+name: content-assistant
+agents: [writer-agent]       # register agents
+workflows: [draft-flow]      # register workflows (workflow/<id>.yaml)
 logger: { level: info }      # logger
 storage:                     # storage (libsql)
   type: libsql
@@ -21,17 +21,17 @@ memory:                      # agent memory (history, working memory, semantic r
   semantic_recall:
     embedder: openai/text-embedding-3-small
   working_memory:
-    template: "# User\n- Name:"
+    template: "# Writing Preferences\n- Tone:\n- Audience:"
 ```
 
 ```yaml title="agent/<id>.yaml"
-name: Support Agent
-description: Handles support questions
-instructions: support-prompt  # prompt/<id>.md
+name: Writer
+description: Drafts content for the user
+instructions: writer-prompt   # prompt/<id>.md
 model: gpt-5-mini             # model/<id>.yaml
-tools: [echo-tool]            # tools/<id>.ts
-agents: [research-agent]      # delegate to other agents
-workflows: [research-flow]    # attach workflows the agent can invoke
+tools: [word-count]           # tools/<id>.ts
+agents: [editor-agent]        # delegate to other agents
+workflows: [compare-drafts]   # attach workflows the agent can invoke
 ```
 
 | Feature | Where | Pattern |

@@ -15,8 +15,8 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsc",
-    "prepublishOnly": "tsc",
+    "build": "tsc && node scripts/copy-templates.mjs",
+    "prepublishOnly": "tsc && node scripts/copy-templates.mjs",
     "parse:example": "tsx scripts/parse-example.ts",
     "gen:example": "tsx scripts/generate-example.ts",
     "gen": "tsx scripts/cli.ts generate",

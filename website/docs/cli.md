@@ -19,6 +19,28 @@ npx @addorimprove/yamlai ./my-project
 npx @addorimprove/yamlai ./my-project ./out --force
 ```
 
+## `init`
+
+Scaffold a complete YAML Agent Builder project to start from.
+
+```bash
+yamlai init [dir] [--force]
+```
+
+- `dir` — target directory. Defaults to `./mastra-app`.
+- `--force` — overwrite a non-empty target directory.
+
+It writes a full working project — agents, models, prompts, tools, and four workflows (sequential, parallel, and two loop forms) — plus a `README.md` and a `.env.example`. The project's `config.yaml` `name` is set to the target directory's basename.
+
+The generated app is written to a separate directory — it cannot overlap the input.
+
+Next steps:
+
+```bash
+yamlai validate mastra-app                   # parse-only check
+yamlai generate mastra-app mastra-app-build  # emit the Mastra app to ./mastra-app-build
+```
+
 ## `validate`
 
 Check that a project is well-formed without generating any code. Useful in CI.
@@ -63,7 +85,7 @@ All problems are collected and reported together (not one at a time):
 
 ```text
 Found 2 problem(s):
-  agent/support-agent.yaml: references unknown model "gpt-5-mega"
+  agent/writer-agent.yaml: references unknown model "gpt-5-mega"
   model/gpt-5-mini.yaml: missing required field "provider"
 ```
 

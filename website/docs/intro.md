@@ -10,12 +10,12 @@ Write YAML, get a runnable [Mastra](https://mastra.ai) TypeScript agent project.
 **1. Write YAML:**
 
 ```yaml
-# agent/support-agent.yaml
-name: Support Agent
-instructions: support-prompt
+# agent/writer-agent.yaml
+name: Writer
+instructions: writer-prompt
 model: gpt-5-mini
 tools:
-  - echo-tool
+  - word-count
 ```
 
 **2. Generate:**
@@ -27,13 +27,13 @@ npx @addorimprove/yamlai ./my-project
 **3. Get plain Mastra code you own:**
 
 ```typescript
-// src/mastra/agents/support-agent.ts
-export const supportAgent = new Agent({
-  id: 'support-agent',
-  name: 'Support Agent',
-  instructions: `You are a helpful support assistant...`,
+// src/mastra/agents/writer-agent.ts
+export const writerAgent = new Agent({
+  id: 'writer-agent',
+  name: 'Writer',
+  instructions: `You are a writing assistant...`,
   model: 'openai/gpt-5-mini',
-  tools: { echoTool },
+  tools: { wordCount },
 });
 ```
 

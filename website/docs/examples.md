@@ -2,13 +2,13 @@
 title: Examples
 ---
 
-# Example: support agent
+# Example: writing assistant
 
-A complete project — YAML in, runnable Mastra TypeScript out. The support agent
-uses memory, an `echo-tool`, and delegates to a `research-agent` (which
-self-delegates to recurse on sub-questions). It also defines two
-[workflows](./reference/workflow.md) — a sequential `research-flow` and a parallel
-`compare-answers` — with `rephrase`/`merge-answers` as the glue tools between steps.
+A complete project — YAML in, runnable Mastra TypeScript out. The writer agent
+uses memory, a `word-count` tool, and delegates to an `editor-agent` (which
+self-delegates to recurse on sub-sections). It also defines two
+[workflows](./reference/workflow.md) — a sequential `draft-flow` and a parallel
+`compare-drafts` — with `brief`/`merge-drafts` as the glue tools between steps.
 
 ## Input
 
@@ -16,30 +16,30 @@ self-delegates to recurse on sub-questions). It also defines two
 examples/
 ├── config.yaml
 ├── agent/
-│   ├── support-agent.yaml
-│   └── research-agent.yaml
+│   ├── writer-agent.yaml
+│   └── editor-agent.yaml
 ├── model/
 │   └── gpt-5-mini.yaml
 ├── prompt/
-│   ├── support-prompt.md
-│   └── research-prompt.md
+│   ├── writer-prompt.md
+│   └── editor-prompt.md
 ├── tools/
-│   ├── echo-tool.ts
-│   ├── rephrase.ts          # glue: { text } -> { prompt }
-│   └── merge-answers.ts     # merge: { 'research-agent': {text}, 'support-agent': {text} } -> { comparison }
+│   ├── word-count.ts
+│   ├── brief.ts             # glue: { text } -> { prompt }
+│   └── merge-drafts.ts      # merge: { 'writer-agent': {text}, 'editor-agent': {text} } -> { comparison }
 └── workflow/
-    ├── research-flow.yaml    # sequential
-    └── compare-answers.yaml  # parallel fan-out + merge
+    ├── draft-flow.yaml       # sequential
+    └── compare-drafts.yaml   # parallel fan-out + merge
 ```
 
 ```yaml title="config.yaml"
-name: my-mastra-app
+name: content-assistant
 agents:
-  - support-agent
-  - research-agent
+  - writer-agent
+  - editor-agent
 workflows:                 # registered on the Mastra instance (workflow/<id>.yaml)
-  - research-flow          # sequential: research-agent -> rephrase(tool) -> support-agent
-  - compare-answers        # parallel:   [research-agent | support-agent] -> merge-answers(tool)
+  - draft-flow             # sequential: writer-agent -> brief(step) -> editor-agent
+  - compare-drafts         # parallel:   [writer-agent | editor-agent] -> merge-drafts(tool)
 logger:
   level: info
 storage:
@@ -55,33 +55,33 @@ memory:
   working_memory:
     scope: resource
     template: |
-      # User Profile
-      - Name:
-      - Plan tier:
+      # Writing Preferences
+      - Tone:
+      - Audience:
 ```
 
-```yaml title="agent/support-agent.yaml"
-name: Support Agent
-description: Handles customer support questions.
-instructions: support-prompt
+```yaml title="agent/writer-agent.yaml"
+name: Writer
+description: Drafts content for the user.
+instructions: writer-prompt
 model: gpt-5-mini
 memory: true
 tools:
-  - echo-tool
+  - word-count
 agents:
-  - research-agent
+  - editor-agent
 workflows:
-  - compare-answers          # compare-answers runs support-agent → agent⇄workflow cycle
+  - compare-drafts          # compare-drafts runs writer-agent → agent⇄workflow cycle
 ```
 
-```yaml title="agent/research-agent.yaml"
-name: Research Agent
-description: Looks up background information for the support agent.
-instructions: research-prompt
+```yaml title="agent/editor-agent.yaml"
+name: Editor
+description: Reviews and improves drafts for the writer.
+instructions: editor-prompt
 model: gpt-5-mini
-# Self-delegation: recursively research sub-questions with itself.
+# Self-delegation: recursively edit sub-sections with itself.
 agents:
-  - research-agent
+  - editor-agent
 ```
 
 ```yaml title="model/gpt-5-mini.yaml"
@@ -91,31 +91,31 @@ temperature: 0.7
 max_tokens: 2048
 ```
 
-```md title="prompt/support-prompt.md"
-You are a helpful support assistant. Be concise and accurate.
-Use the echo-tool when you need to repeat the user's input back to them.
+```md title="prompt/writer-prompt.md"
+You are a writing assistant. Given a topic or brief, produce a clear, well-structured
+draft. Use the word-count tool to check the draft against the target length.
 ```
 
-```md title="prompt/research-prompt.md"
-You are a research assistant. Given a question, find and summarise the relevant
-background information concisely. Return only the facts the caller needs.
+```md title="prompt/editor-prompt.md"
+You are an editor. Given a draft, improve it for clarity, flow, and concision.
+Return only the revised text.
 ```
 
-```typescript title="tools/echo-tool.ts"
+```typescript title="tools/word-count.ts"
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 
-export const echoTool = createTool({
-  id: 'echo-tool',
-  description: 'Echoes the input text back.',
+export const wordCount = createTool({
+  id: 'word-count',
+  description: 'Counts the words in the given text.',
   inputSchema: z.object({
-    text: z.string().describe('Text to echo back'),
+    text: z.string().describe('Text to count words in'),
   }),
   outputSchema: z.object({
-    text: z.string(),
+    words: z.number(),
   }),
   execute: async (inputData) => {
-    return { text: inputData.text };
+    return { words: inputData.text.trim().split(/\s+/).filter(Boolean).length };
   },
 });
 ```
@@ -123,13 +123,13 @@ export const echoTool = createTool({
 ## Generate
 
 ```bash
-npx @addorimprove/yamlai ./examples ./my-mastra-app
+npx @addorimprove/yamlai ./examples ./content-assistant
 ```
 
 ## Output
 
 ```text
-my-mastra-app/
+content-assistant/
 ├── .gitignore
 ├── package.json
 ├── pnpm-workspace.yaml
@@ -137,15 +137,15 @@ my-mastra-app/
 └── src/mastra/
     ├── index.ts
     ├── agents/
-    │   ├── support-agent.ts
-    │   └── research-agent.ts
+    │   ├── writer-agent.ts
+    │   └── editor-agent.ts
     ├── workflows/
-    │   ├── research-flow.ts
-    │   └── compare-answers.ts
+    │   ├── draft-flow.ts
+    │   └── compare-drafts.ts
     ├── tools/
-    │   ├── echo-tool.ts
-    │   ├── rephrase.ts          # copied verbatim (glue tool)
-    │   └── merge-answers.ts     # copied verbatim (merge tool)
+    │   ├── word-count.ts
+    │   ├── brief.ts             # copied verbatim (glue tool)
+    │   └── merge-drafts.ts      # copied verbatim (merge tool)
     └── utils/
         └── memory.ts
 ```
@@ -154,63 +154,63 @@ my-mastra-app/
 import { Mastra } from '@mastra/core/mastra';
 import { PinoLogger } from '@mastra/loggers';
 import { LibSQLStore } from '@mastra/libsql';
-import { supportAgent } from './agents/support-agent';
-import { researchAgent } from './agents/research-agent';
-import { researchFlow } from './workflows/research-flow';
-import { compareAnswers } from './workflows/compare-answers';
+import { writerAgent } from './agents/writer-agent';
+import { editorAgent } from './agents/editor-agent';
+import { draftFlow } from './workflows/draft-flow';
+import { compareDrafts } from './workflows/compare-drafts';
 
 export const mastra = new Mastra({
-  agents: { supportAgent, researchAgent },
-  workflows: { researchFlow, compareAnswers },
+  agents: { writerAgent, editorAgent },
+  workflows: { draftFlow, compareDrafts },
   storage: new LibSQLStore({ id: 'mastra-storage', url: "file:./mastra.db" }),
   logger: new PinoLogger({ name: 'Mastra', level: "info" }),
 });
 ```
 
-```typescript title="src/mastra/agents/support-agent.ts"
+```typescript title="src/mastra/agents/writer-agent.ts"
 import { Agent } from '@mastra/core/agent';
-import { echoTool } from '../tools/echo-tool';
-import { researchAgent } from './research-agent';
+import { wordCount } from '../tools/word-count';
+import { editorAgent } from './editor-agent';
 import { memory } from '../utils/memory';
 
-export const supportAgent = new Agent({
-  id: "support-agent",
-  name: "Support Agent",
-  description: "Handles customer support questions.",
-  instructions: `You are a helpful support assistant. Be concise and accurate.
-Use the echo-tool when you need to repeat the user's input back to them.`,
+export const writerAgent = new Agent({
+  id: "writer-agent",
+  name: "Writer",
+  description: "Drafts content for the user.",
+  instructions: `You are a writing assistant. Given a topic or brief, produce a clear, well-structured
+draft. Use the word-count tool to check the draft against the target length.`,
   model: [{ model: "openai/gpt-5-mini", modelSettings: { temperature: 0.7, maxOutputTokens: 2048 } }],
-  tools: { echoTool },
-  agents: { researchAgent },
-  // compare-answers runs support-agent (a parallel step), so this attachment is a
+  tools: { wordCount },
+  agents: { editorAgent },
+  // compare-drafts runs writer-agent (a parallel step), so this attachment is a
   // cycle — emitted lazily off the Mastra instance to avoid a static import cycle.
-  workflows: ({ mastra }) => ({ compareAnswers: mastra!.getWorkflow("compareAnswers") }),
+  workflows: ({ mastra }) => ({ compareDrafts: mastra!.getWorkflow("compareDrafts") }),
   memory,
 });
 ```
 
 The model id inlines to the Model Router string plus `modelSettings`; the prompt
-inlines into `instructions`; `echo-tool` and the `research-agent` sub-agent are
+inlines into `instructions`; `word-count` and the `editor-agent` sub-agent are
 imported by camelCase name; `memory: true` wires in the shared `memory` util. The
-attached `compare-answers` workflow forms an agent⇄workflow cycle, so its
+attached `compare-drafts` workflow forms an agent⇄workflow cycle, so its
 `workflows` field is emitted as a lazy thunk off `mastra` — see
 [workflow reference → Attaching workflows to an agent](./reference/workflow.md#attaching-workflows-to-an-agent-agentworkflows).
 
-```typescript title="src/mastra/agents/research-agent.ts"
+```typescript title="src/mastra/agents/editor-agent.ts"
 import { Agent } from '@mastra/core/agent';
 
-export const researchAgent: Agent = new Agent({
-  id: "research-agent",
-  name: "Research Agent",
-  description: "Looks up background information for the support agent.",
-  instructions: `You are a research assistant. Given a question, find and summarise the relevant
-background information concisely. Return only the facts the caller needs.`,
+export const editorAgent: Agent = new Agent({
+  id: "editor-agent",
+  name: "Editor",
+  description: "Reviews and improves drafts for the writer.",
+  instructions: `You are an editor. Given a draft, improve it for clarity, flow, and concision.
+Return only the revised text.`,
   model: [{ model: "openai/gpt-5-mini", modelSettings: { temperature: 0.7, maxOutputTokens: 2048 } }],
-  agents: () => ({ researchAgent }),
+  agents: () => ({ editorAgent }),
 });
 ```
 
-Because `research-agent` sits on a delegation cycle (it references itself), its
+Because `editor-agent` sits on a delegation cycle (it references itself), its
 `agents` field is emitted as a thunk (`() => ({ ... })`) and the export gets an
 explicit `: Agent` annotation — this resolves the circular binding lazily at
 runtime and avoids the self-referential type-inference error. See
@@ -227,9 +227,9 @@ export const memory = new Memory({
   options: {
     lastMessages: 20,
     semanticRecall: { topK: 3, messageRange: { before: 2, after: 1 }, scope: "resource" },
-    workingMemory: { enabled: true, scope: "resource", template: `# User Profile
-- Name:
-- Plan tier:` },
+    workingMemory: { enabled: true, scope: "resource", template: `# Writing Preferences
+- Tone:
+- Audience:` },
   },
 });
 ```
@@ -237,7 +237,7 @@ export const memory = new Memory({
 ## Run
 
 ```bash
-cd my-mastra-app
+cd content-assistant
 npm install
 export OPENAI_API_KEY=sk-...
 npm run dev
@@ -247,58 +247,57 @@ npm run dev
 
 The two `workflow/` files compile to `createWorkflow(...).then()/.parallel().commit()`
 chains and register on the Mastra instance (see [index.ts](#output) above). The glue
-tools `rephrase`/`merge-answers` are ordinary [tools](./reference/tools.md) — tools
+tools `brief`/`merge-drafts` are ordinary [tools](./reference/tools.md) — tools
 double as the shaping/merge units between steps. For the full mapping (step kinds,
 `input`/`output` → Zod, attachment, gotchas) see the
 [workflow reference](./reference/workflow.md).
 
-```yaml title="workflow/research-flow.yaml"
-# id = filename (research-flow). Steps run in order via .then().
-name: Research Flow
-description: Research a question, then have the support agent answer from the notes.
+```yaml title="workflow/draft-flow.yaml"
+# id = filename (draft-flow). Steps run in order via .then().
+description: Draft the content, then have the editor refine it.
 
 input:  { prompt: string }     # matches an agent step's input shape directly
 output: { text: string }       # matches an agent step's output shape directly
 
 steps:
-  - agent: research-agent      # { prompt } -> { text }
-  - tool:  rephrase            # { text }  -> { prompt }   (glue tool, tools/rephrase.ts)
-  - agent: support-agent       # { prompt } -> { text }
+  - agent: writer-agent        # { prompt } -> { text }
+  - step:  brief               # { text }  -> { prompt }   (glue step, workflow/steps/brief.ts — typed execute)
+  - agent: editor-agent        # { prompt } -> { text }
 ```
 
-```typescript title="src/mastra/workflows/research-flow.ts"
-export const researchFlow = createWorkflow({
-  id: 'research-flow',
+```typescript title="src/mastra/workflows/draft-flow.ts"
+export const draftFlow = createWorkflow({
+  id: 'draft-flow',
   inputSchema: z.object({ prompt: z.string() }),
   outputSchema: z.object({ text: z.string() }),
 })
-  .then(createStep(researchAgent))
-  .then(createStep(rephrase))
-  .then(createStep(supportAgent))
+  .then(createStep(writerAgent))
+  .then(brief)
+  .then(createStep(editorAgent))
   .commit();
 ```
 
-```yaml title="workflow/compare-answers.yaml"
-name: Compare Answers
-description: Ask the research and support agents the same question in parallel, then merge.
+```yaml title="workflow/compare-drafts.yaml"
+name: Compare Drafts
+description: Have the writer and editor each draft from the same brief, then merge.
 
 input:  { prompt: string }     # → z.object({ prompt: z.string() })
 output: { comparison: string }
 
 steps:
   - parallel:                  # both agents run at once on the same { prompt }
-      - agent: research-agent
-      - agent: support-agent
-  - tool: merge-answers        # { 'research-agent': {text}, 'support-agent': {text} } -> { comparison }
+      - agent: writer-agent
+      - agent: editor-agent
+  - tool: merge-drafts         # { 'writer-agent': {text}, 'editor-agent': {text} } -> { comparison }
 ```
 
-```typescript title="src/mastra/workflows/compare-answers.ts"
-export const compareAnswers = createWorkflow({
-  id: 'compare-answers',
+```typescript title="src/mastra/workflows/compare-drafts.ts"
+export const compareDrafts = createWorkflow({
+  id: 'compare-drafts',
   inputSchema: z.object({ prompt: z.string() }),
   outputSchema: z.object({ comparison: z.string() }),
 })
-  .parallel([createStep(researchAgent), createStep(supportAgent)])
-  .then(createStep(mergeAnswers))
+  .parallel([createStep(writerAgent), createStep(editorAgent)])
+  .then(createStep(mergeDrafts))
   .commit();
 ```

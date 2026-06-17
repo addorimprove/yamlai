@@ -12,21 +12,21 @@ Requires **Node.js >= 22.13**.
 my-project/
 ├── config.yaml
 ├── agent/
-│   └── support-agent.yaml
+│   └── writer-agent.yaml
 ├── model/
 │   └── gpt-5-mini.yaml
 ├── prompt/
-│   └── support-prompt.md
+│   └── writer-prompt.md
 └── tools/
-    └── echo-tool.ts
+    └── word-count.ts
 ```
 
 `config.yaml`:
 
 ```yaml
-name: my-mastra-app
+name: content-assistant
 agents:
-  - support-agent
+  - writer-agent
 logger:
   level: info
 storage:
@@ -34,15 +34,15 @@ storage:
   url: file:./mastra.db
 ```
 
-`agent/support-agent.yaml`:
+`agent/writer-agent.yaml`:
 
 ```yaml
-name: Support Agent
-description: Handles customer support questions.
-instructions: support-prompt   # → prompt/support-prompt.md
+name: Writer
+description: Drafts content for the user.
+instructions: writer-prompt   # → prompt/writer-prompt.md
 model: gpt-5-mini              # → model/gpt-5-mini.yaml
 tools:
-  - echo-tool                 # → tools/echo-tool.ts
+  - word-count                 # → tools/word-count.ts
 ```
 
 `model/gpt-5-mini.yaml`:
@@ -54,25 +54,27 @@ temperature: 0.7
 max_tokens: 2048
 ```
 
-`prompt/support-prompt.md`:
+`prompt/writer-prompt.md`:
 
 ```md
-You are a helpful support assistant. Be concise and accurate.
-Use the echo-tool when you need to repeat the user's input back to them.
+You are a writing assistant. Given a topic or brief, produce a clear, well-structured
+draft. Use the word-count tool to check the draft against the target length.
 ```
 
-`tools/echo-tool.ts`:
+`tools/word-count.ts`:
 
 ```typescript
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 
-export const echoTool = createTool({
-  id: 'echo-tool',
-  description: 'Echoes the input text back.',
-  inputSchema: z.object({ text: z.string().describe('Text to echo back') }),
-  outputSchema: z.object({ text: z.string() }),
-  execute: async (inputData) => ({ text: inputData.text }),
+export const wordCount = createTool({
+  id: 'word-count',
+  description: 'Counts the words in the given text.',
+  inputSchema: z.object({ text: z.string().describe('Text to count words in') }),
+  outputSchema: z.object({ words: z.number() }),
+  execute: async (inputData) => ({
+    words: inputData.text.trim().split(/\s+/).filter(Boolean).length,
+  }),
 });
 ```
 
@@ -85,7 +87,7 @@ npx @addorimprove/yamlai ./my-project ./out
 Omit the output dir to default to `name` from `config.yaml`:
 
 ```bash
-npx @addorimprove/yamlai ./my-project   # → ./my-mastra-app
+npx @addorimprove/yamlai ./my-project   # → ./content-assistant
 ```
 
 ## 3. Run it
@@ -114,11 +116,11 @@ memory:
   semantic_recall:
     embedder: openai/text-embedding-3-small
   working_memory:
-    template: "# User\n- Name:"
+    template: "# Writing Preferences\n- Tone:\n- Audience:"
 ```
 
 ```yaml
-# agent/support-agent.yaml
+# agent/writer-agent.yaml
 memory: true   # opt in to the project memory
 ```
 

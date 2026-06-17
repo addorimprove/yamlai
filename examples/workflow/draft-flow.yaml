@@ -1,0 +1,10 @@
+# Sequential workflow. id = filename (draft-flow). Steps run in order via .then().
+description: Draft the content, then have the editor refine it.
+
+input:  { prompt: string }     # matches an agent step's input shape directly
+output: { text: string }       # matches an agent step's output shape directly
+
+steps:
+  - agent: writer-agent        # { prompt } -> { text }
+  - step:  brief               # { text }  -> { prompt }   (glue step, workflow/steps/brief.ts — typed execute)
+  - agent: editor-agent        # { prompt } -> { text }
