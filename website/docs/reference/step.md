@@ -4,7 +4,7 @@ title: "workflow/steps/<id>.ts"
 
 # workflow/steps/&lt;id&gt;.ts
 
-A **TypeScript module** (not YAML) exporting one Mastra workflow step via `createStep`. The id is the filename (`workflow/steps/rephrase.ts` → id `rephrase`); the file **must export** its camelCase form (`rephrase`) — `validate` checks the file exists *and* declares that export (the [id must also be a valid identifier](./config.md#id-naming)). Referenced by a [workflow](./workflow.md)'s `step:` leaf. The file is copied **verbatim** into the output.
+A **TypeScript module** (not YAML) exporting one Mastra workflow step via `createStep`. The id is the filename (`workflow/steps/brief.ts` → id `brief`); the file **must export** its camelCase form (`brief`) — `validate` checks the file exists *and* declares that export (the [id must also be a valid identifier](./config.md#id-naming)). Referenced by a [workflow](./workflow.md)'s `step:` leaf. The file is copied **verbatim** into the output.
 
 A step is the typed sibling of a glue [tool](./tools.md): `execute` receives `{ inputData }` inferred from `inputSchema`, so a shape mistake fails `tsc` rather than surfacing as `undefined` at runtime. Prefer a `step:` over a glue `tool:` when you want reshaping between agents type-checked.
 
@@ -12,13 +12,13 @@ A step is the typed sibling of a glue [tool](./tools.md): `execute` receives `{ 
 import { createStep } from '@mastra/core/workflows';
 import { z } from 'zod';
 
-// Glue step: reshape a research agent's { text } into the { prompt } the support agent reads.
-export const rephrase = createStep({
-  id: 'rephrase',
+// Glue step: reshape the writer's { text } into the { prompt } the editor reads.
+export const brief = createStep({
+  id: 'brief',
   inputSchema: z.object({ text: z.string() }),
   outputSchema: z.object({ prompt: z.string() }),
   execute: async ({ inputData }) => ({
-    prompt: `Using these research notes, answer the user clearly:\n\n${inputData.text}`,
+    prompt: `Revise this draft for clarity and flow:\n\n${inputData.text}`,
   }),
 });
 ```
@@ -47,12 +47,14 @@ Use a **step** for in-workflow shaping/logic; use a **tool** when the same unit 
 
 In a [workflow](./workflow.md), a `step:` leaf sits alongside `agent:`/`tool:` — both as a plain step and as a `parallel` child:
 
-```yaml title="workflow/research-flow.yaml"
+```yaml title="workflow/draft-flow.yaml"
 steps:
-  - agent: research-agent
-  - step:  rephrase          # → workflow/steps/rephrase.ts
-  - agent: support-agent
+  - agent: writer-agent
+  - step:  brief            # → workflow/steps/brief.ts
+  - agent: editor-agent
 ```
+
+The `brief` step is the typed glue in the `draft-flow` sequential chain: it accepts the Writer's `{ text }` output and reshapes it into the `{ prompt }` the Editor expects, so any shape mismatch is caught by `tsc` rather than silently failing at runtime.
 
 The referenced `workflow/steps/<id>.ts` must exist and export the camelCased id — `validate` checks both.
 
@@ -60,8 +62,8 @@ The referenced `workflow/steps/<id>.ts` must exist and export the camelCased id 
 
 Copied as-is (once, even if shared across workflows). Because an authored `createStep({...})` **is** a `Step`, the workflow uses it **directly** — no `createStep()` wrapper (unlike `agent:`/`tool:`):
 
-```typescript title="src/mastra/workflows/research-flow.ts (generated)"
-import { rephrase } from './steps/rephrase';
+```typescript title="src/mastra/workflows/draft-flow.ts (generated)"
+import { brief } from './steps/brief';
 // ...
-  .then(rephrase)            // step used directly; agents/tools are wrapped in createStep(...)
+  .then(brief)             // step used directly; agents/tools are wrapped in createStep(...)
 ```

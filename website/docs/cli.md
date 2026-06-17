@@ -85,7 +85,7 @@ All problems are collected and reported together (not one at a time):
 
 ```text
 Found 2 problem(s):
-  agent/support-agent.yaml: references unknown model "gpt-5-mega"
+  agent/writer-agent.yaml: references unknown model "gpt-5-mega"
   model/gpt-5-mini.yaml: missing required field "provider"
 ```
 

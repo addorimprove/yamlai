@@ -22,8 +22,9 @@ memory:
   working_memory:    # optional; persistent per-user profile
     scope: resource
     template: |
-      # User Profile
-      - Name:
+      # Writing Preferences
+      - Tone:
+      - Audience:
 ```
 
 ## agent/&lt;id&gt;.yaml
@@ -45,8 +46,9 @@ export const memory = new Memory({
   options: {
     lastMessages: 20,
     semanticRecall: { topK: 3, messageRange: { before: 2, after: 1 }, scope: "resource" },
-    workingMemory: { enabled: true, scope: "resource", template: `# User Profile
-- Name:` },
+    workingMemory: { enabled: true, scope: "resource", template: `# Writing Preferences
+- Tone:
+- Audience:` },
   },
 });
 ```

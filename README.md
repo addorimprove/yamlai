@@ -23,7 +23,7 @@ cd builder
 pnpm install
 
 pnpm gen ../examples ../out   # generic CLI: gen <input> [output] [--force]
-pnpm gen:example              # bundled example (examples/) → ./my-mastra-app
+pnpm gen:example              # bundled example (examples/) → ./content-assistant
 ```
 
 Run the generated project:
@@ -44,23 +44,24 @@ Model API keys come from the environment (`OPENAI_API_KEY`, `OPENROUTER_API_KEY`
 
 ## Input format
 
-`id` = filename for every entity. A kebab-case id (`support-agent`) becomes a camelCase variable
-(`supportAgent`). Agents reference models and tools by id.
+`id` = filename for every entity. A kebab-case id (`writer-agent`) becomes a camelCase variable
+(`writerAgent`). Agents reference models and tools by id.
 
 ```
 config.yaml
-agent/   support-agent.yaml
+agent/   writer-agent.yaml
 model/   gpt-5-mini.yaml
-prompt/  support-prompt.md
-tools/   echo-tool.ts
+prompt/  writer-prompt.md
+tools/   word-count.ts
 ```
 
 **`config.yaml`**
 
 ```yaml
-name: my-mastra-app       # package.json name + default output dir
+name: content-assistant   # package.json name + default output dir
 agents:                   # explicit list; each id → agent/<id>.yaml
-  - support-agent
+  - writer-agent
+  - editor-agent
 logger:                   # optional (default: { level: info })
   level: info             # debug | info | warn | error
 storage:                  # optional — omit for no storage block
@@ -71,20 +72,24 @@ storage:                  # optional — omit for no storage block
 **`agent/<id>.yaml`**
 
 ```yaml
-name: Support Agent
-description: Handles customer support questions.
-instructions: support-prompt  # → prompt/<id>.md
-model: gpt-5-mini             # → model/<id>.yaml
-tools:                        # → tools/<id>.ts (optional)
-  - echo-tool
+name: Writer
+description: Drafts content for the user.
+instructions: writer-prompt  # → prompt/<id>.md
+model: gpt-5-mini            # → model/<id>.yaml
+tools:                       # → tools/<id>.ts (optional)
+  - word-count
+agents:
+  - editor-agent
+workflows:
+  - compare-drafts
 ```
 
 **`prompt/<id>.md`** — the agent's system prompt as plain Markdown. The file content is **inlined**
 into the agent that references it via `instructions`; no prompt file is emitted.
 
 ```md
-You are a helpful support assistant. Be concise and accurate.
-Use the echo-tool when you need to repeat the user's input back to them.
+You are a writing assistant. Given a topic or brief, produce a clear, well-structured
+draft. Use the word-count tool to check the draft against the target length.
 ```
 
 **`model/<id>.yaml`** — `provider` + `model` form Mastra's Model Router string
@@ -104,12 +109,14 @@ max_tokens: 2048          # optional → modelSettings.maxTokens
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 
-export const echoTool = createTool({
-  id: 'echo-tool',
-  description: 'Echoes the input text back.',
+export const wordCount = createTool({
+  id: 'word-count',
+  description: 'Counts the words in the given text.',
   inputSchema: z.object({ text: z.string() }),
-  outputSchema: z.object({ text: z.string() }),
-  execute: async (inputData) => ({ text: inputData.text }),
+  outputSchema: z.object({ words: z.number() }),
+  execute: async (inputData) => ({
+    words: inputData.text.trim().split(/\s+/).filter(Boolean).length,
+  }),
 });
 ```
 
@@ -163,7 +170,7 @@ cd builder
 pnpm install
 pnpm build           # tsc type-check / emit to dist/
 pnpm parse:example   # parse examples/ → dump resolved ParsedProject
-pnpm gen:example     # generate examples/ → ./my-mastra-app
+pnpm gen:example     # generate examples/ → ./content-assistant
 ```
 
 Requires Node ≥ 22.13 and pnpm. Tests are deferred for v1; the pipeline is verified by the example
