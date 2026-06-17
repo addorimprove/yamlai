@@ -256,22 +256,26 @@ export function parseProject(rootDir: string): ParsedProject {
 
     const agentRefs: ResolvedWorkflowRef[] = [];
     const toolRefs: ResolvedTool[] = [];
+    const stepFileRefs: ResolvedTool[] = [];
     let ok = true;
 
-    // Resolve one leaf (agent | tool), recording refs for imports. Returns
+    // Resolve one leaf (agent | tool | step), recording refs for imports. Returns
     // undefined and records an issue on any problem.
     const resolveLeaf = (
-      node: { agent?: string; tool?: string },
+      node: { agent?: string; tool?: string; step?: string },
       where: string,
     ): ResolvedStepRef | undefined => {
-      const hasAgent = typeof node.agent === 'string';
-      const hasTool = typeof node.tool === 'string';
-      if (hasAgent === hasTool) {
-        addIssue(wfPath, `${where} must have exactly one of \`agent:\` or \`tool:\``);
+      const kinds = [
+        node.agent !== undefined ? 'agent' : null,
+        node.tool !== undefined ? 'tool' : null,
+        node.step !== undefined ? 'step' : null,
+      ].filter(Boolean);
+      if (kinds.length !== 1) {
+        addIssue(wfPath, `${where} must have exactly one of \`agent:\`, \`tool:\`, or \`step:\``);
         return undefined;
       }
-      if (hasAgent) {
-        const id = node.agent as string;
+      if (node.agent !== undefined) {
+        const id = node.agent;
         if (!configAgentSet.has(id)) {
           addIssue(wfPath, `agent not found: ${id} (must be listed in config.yaml agents)`);
           return undefined;
@@ -280,17 +284,30 @@ export function parseProject(rootDir: string): ParsedProject {
         if (!agentRefs.some((a) => a.id === id)) agentRefs.push({ id, exportName });
         return { kind: 'agent', id, exportName };
       }
-      const id = node.tool as string;
-      const toolPath = `tools/${id}.ts`;
-      if (!existsSync(join(rootDir, toolPath))) {
-        addIssue(wfPath, `tool not found: ${toolPath}`);
+      if (node.tool !== undefined) {
+        const id = node.tool;
+        const toolPath = `tools/${id}.ts`;
+        if (!existsSync(join(rootDir, toolPath))) {
+          addIssue(wfPath, `tool not found: ${toolPath}`);
+          return undefined;
+        }
+        const exportName = toExportName(id);
+        if (!toolRefs.some((t) => t.id === id)) {
+          toolRefs.push({ id, filePath: toolPath, exportName });
+        }
+        return { kind: 'tool', id, exportName };
+      }
+      const id = node.step!;
+      const stepPath = `step/${id}.ts`;
+      if (!existsSync(join(rootDir, stepPath))) {
+        addIssue(wfPath, `step not found: ${stepPath}`);
         return undefined;
       }
       const exportName = toExportName(id);
-      if (!toolRefs.some((t) => t.id === id)) {
-        toolRefs.push({ id, filePath: toolPath, exportName });
+      if (!stepFileRefs.some((s) => s.id === id)) {
+        stepFileRefs.push({ id, filePath: stepPath, exportName });
       }
-      return { kind: 'tool', id, exportName };
+      return { kind: 'step', id, exportName };
     };
 
     const resolvedSteps: ResolvedWorkflowStep[] = [];
@@ -298,13 +315,14 @@ export function parseProject(rootDir: string): ParsedProject {
       const hasParallel = Array.isArray(step.parallel);
       const hasAgent = typeof step.agent === 'string';
       const hasTool = typeof step.tool === 'string';
-      if ((hasParallel ? 1 : 0) + (hasAgent ? 1 : 0) + (hasTool ? 1 : 0) !== 1) {
-        addIssue(wfPath, `step ${i + 1} must have exactly one of \`agent:\`, \`tool:\`, or \`parallel:\``);
+      const hasStep = typeof step.step === 'string';
+      if ((hasParallel ? 1 : 0) + (hasAgent ? 1 : 0) + (hasTool ? 1 : 0) + (hasStep ? 1 : 0) !== 1) {
+        addIssue(wfPath, `step ${i + 1} must have exactly one of \`agent:\`, \`tool:\`, \`step:\`, or \`parallel:\``);
         ok = false;
         continue;
       }
       if (hasParallel) {
-        const kids = step.parallel as { agent?: string; tool?: string }[];
+        const kids = step.parallel as { agent?: string; tool?: string; step?: string }[];
         if (kids.length < 2) {
           addIssue(wfPath, `step ${i + 1}: \`parallel\` needs at least 2 steps (use a plain step otherwise)`);
           ok = false;
@@ -355,6 +373,7 @@ export function parseProject(rootDir: string): ParsedProject {
       steps: resolvedSteps,
       agents: agentRefs,
       tools: toolRefs,
+      stepFiles: stepFileRefs,
     });
   }
 
@@ -454,6 +473,7 @@ export function parseProject(rootDir: string): ParsedProject {
       { name: wf.exportName, key: `workflow:${wf.id}` },
       ...wf.agents.map((a) => ({ name: a.exportName, key: `agent:${a.id}` })),
       ...wf.tools.map((t) => ({ name: t.exportName, key: `tool:${t.id}` })),
+      ...wf.stepFiles.map((s) => ({ name: s.exportName, key: `step:${s.id}` })),
     ]);
   }
 

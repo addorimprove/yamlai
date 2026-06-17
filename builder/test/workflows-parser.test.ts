@@ -140,3 +140,33 @@ test('a non-workflow project still parses (empty workflows list)', () => {
   });
   assert.deepEqual(parseProject(dir).workflows, []);
 });
+
+test('resolves a step leaf and records it for copy', () => {
+  const dir = makeProject({
+    ...base('flow'),
+    'step/rephrase.ts': "import { createStep } from '@mastra/core/workflows';\nexport const rephrase = {};\n",
+    'workflow/flow.yaml':
+      'input: { prompt: string }\noutput: { text: string }\n' +
+      'steps:\n  - agent: research-agent\n  - step: rephrase\n  - agent: support-agent\n',
+  });
+  const wf = parseProject(dir).workflows[0];
+  assert.deepEqual(wf.steps.map((s) => s.kind), ['agent', 'step', 'agent']);
+  assert.deepEqual(wf.stepFiles.map((s) => s.id), ['rephrase']);
+});
+
+test('errors on an unresolved step ref', () => {
+  const dir = makeProject({
+    ...base('bad'),
+    'workflow/bad.yaml': 'steps:\n  - step: ghost\n',
+  });
+  assert.throws(() => parseProject(dir), /step not found: step\/ghost\.ts/);
+});
+
+test('errors when a leaf has more than one of agent/tool/step', () => {
+  const dir = makeProject({
+    ...base('bad'),
+    'step/rephrase.ts': 'export const rephrase = {};\n',
+    'workflow/bad.yaml': 'steps:\n  - tool: rephrase\n    step: rephrase\n',
+  });
+  assert.throws(() => parseProject(dir), /must have exactly one of/);
+});
