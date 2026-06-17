@@ -1,10 +1,10 @@
 ---
-title: "step/<id>.ts"
+title: "workflow/steps/<id>.ts"
 ---
 
-# step/&lt;id&gt;.ts
+# workflow/steps/&lt;id&gt;.ts
 
-A **TypeScript module** (not YAML) exporting one Mastra workflow step via `createStep`. The id is the filename (`step/rephrase.ts` → id `rephrase`); the export must be its camelCase form (`rephrase`). Referenced by a [workflow](./workflow.md)'s `step:` leaf. The file is copied **verbatim** into the output.
+A **TypeScript module** (not YAML) exporting one Mastra workflow step via `createStep`. The id is the filename (`workflow/steps/rephrase.ts` → id `rephrase`); the export must be its camelCase form (`rephrase`). Referenced by a [workflow](./workflow.md)'s `step:` leaf. The file is copied **verbatim** into the output.
 
 A step is the typed sibling of a glue [tool](./tools.md): its `execute` receives `{ inputData }` **inferred from `inputSchema`**, so a shape mistake fails `tsc` instead of surfacing as `undefined` at run time. Reach for a `step:` (not a glue `tool:`) whenever you're reshaping/merging data between agents and want that reshaping type-checked.
 
@@ -35,7 +35,7 @@ export const rephrase = createStep({
 
 ## step vs. glue tool
 
-| | `step/<id>.ts` | glue `tools/<id>.ts` |
+| | `workflow/steps/<id>.ts` | glue `tools/<id>.ts` |
 |---|---|---|
 | `execute` input | `{ inputData }`, **typed** from `inputSchema` | first positional arg, typed `any` |
 | Shape mistakes | caught at `tsc` | silent at run time |
@@ -50,11 +50,11 @@ In a [workflow](./workflow.md), a `step:` leaf sits alongside `agent:`/`tool:` �
 ```yaml title="workflow/research-flow.yaml"
 steps:
   - agent: research-agent
-  - step:  rephrase          # → step/rephrase.ts
+  - step:  rephrase          # → workflow/steps/rephrase.ts
   - agent: support-agent
 ```
 
-The referenced `step/<id>.ts` must exist or codegen fails.
+The referenced `workflow/steps/<id>.ts` must exist or codegen fails.
 
 ## Generated output
 

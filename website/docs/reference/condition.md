@@ -1,15 +1,15 @@
 ---
-title: "condition/<id>.ts"
+title: "workflow/condition/<id>.ts"
 ---
 
-# condition/&lt;id&gt;.ts
+# workflow/condition/&lt;id&gt;.ts
 
-A **TypeScript module** (not YAML) exporting one loop predicate. The id is the filename (`condition/good-enough.ts` → id `good-enough`); the export must be its camelCase form (`goodEnough`). Referenced by a [workflow](./workflow.md) `loop:`'s `until:`/`while:`. The file is copied **verbatim** into the output.
+A **TypeScript module** (not YAML) exporting one loop predicate. The id is the filename (`workflow/condition/good-enough.ts` → id `good-enough`); the export must be its camelCase form (`goodEnough`). Referenced by a [workflow](./workflow.md) `loop:`'s `until:`/`while:`. The file is copied **verbatim** into the output.
 
 A condition is a Mastra `LoopConditionFunction` — an `async` function returning a `boolean`. It receives the **loop body's output** as `inputData`, plus the engine's `iterationCount`, plus the usual step params (`mastra`, `getStepResult`, …).
 
 ```typescript
-// condition/good-enough.ts
+// workflow/condition/good-enough.ts
 export const goodEnough = async ({
   inputData,
 }: {
@@ -42,12 +42,12 @@ condition as an iteration guard (see [workflow `loop:`](./workflow.md)).
 ```yaml title="workflow/<id>.yaml"
 steps:
   - loop:
-      until: good-enough     # → condition/good-enough.ts
+      until: good-enough     # → workflow/condition/good-enough.ts
       step: refine
       max_iterations: 5
 ```
 
-The referenced `condition/<id>.ts` must exist or codegen fails.
+The referenced `workflow/condition/<id>.ts` must exist or codegen fails.
 
 ## Generated output
 

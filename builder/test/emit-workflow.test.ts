@@ -76,7 +76,7 @@ test('imports steps from ./steps and uses them without createStep', () => {
       { kind: 'agent', ref: { kind: 'agent', id: 'research-agent', exportName: 'researchAgent' } },
       { kind: 'step', ref: { kind: 'step', id: 'rephrase', exportName: 'rephrase' } },
     ],
-    stepFiles: [{ id: 'rephrase', filePath: 'step/rephrase.ts', exportName: 'rephrase' }],
+    stepFiles: [{ id: 'rephrase', filePath: 'workflow/steps/rephrase.ts', exportName: 'rephrase' }],
     tools: [],
   });
   assert.match(out, /import \{ rephrase \} from '\.\/steps\/rephrase';/);
@@ -91,11 +91,11 @@ test('emits .dountil with a single-leaf body, imported condition, and max_iterat
     steps: [{ kind: 'loop', loop: {
       loopKind: 'dountil',
       body: { kind: 'leaf', ref: { kind: 'agent', id: 'support-agent', exportName: 'supportAgent' } },
-      condition: { id: 'good-enough', filePath: 'condition/good-enough.ts', exportName: 'goodEnough' },
+      condition: { id: 'good-enough', filePath: 'workflow/condition/good-enough.ts', exportName: 'goodEnough' },
       maxIterations: 5,
     } }],
     agents: [{ id: 'support-agent', exportName: 'supportAgent' }], tools: [], stepFiles: [],
-    conditionFiles: [{ id: 'good-enough', filePath: 'condition/good-enough.ts', exportName: 'goodEnough' }],
+    conditionFiles: [{ id: 'good-enough', filePath: 'workflow/condition/good-enough.ts', exportName: 'goodEnough' }],
   });
   assert.match(out, /import \{ goodEnough \} from '\.\/condition\/good-enough';/);
   assert.match(out, /\.dountil\(createStep\(supportAgent\), async \(args\) => \(await goodEnough\(args\)\) \|\| args\.iterationCount >= 5\)/);
@@ -107,11 +107,11 @@ test('emits .dowhile with a bare condition (no max_iterations)', () => {
     steps: [{ kind: 'loop', loop: {
       loopKind: 'dowhile',
       body: { kind: 'leaf', ref: { kind: 'step', id: 'refiner', exportName: 'refiner' } },
-      condition: { id: 'keep', filePath: 'condition/keep.ts', exportName: 'keep' },
+      condition: { id: 'keep', filePath: 'workflow/condition/keep.ts', exportName: 'keep' },
     } }],
     agents: [], tools: [],
-    stepFiles: [{ id: 'refiner', filePath: 'step/refiner.ts', exportName: 'refiner' }],
-    conditionFiles: [{ id: 'keep', filePath: 'condition/keep.ts', exportName: 'keep' }],
+    stepFiles: [{ id: 'refiner', filePath: 'workflow/steps/refiner.ts', exportName: 'refiner' }],
+    conditionFiles: [{ id: 'keep', filePath: 'workflow/condition/keep.ts', exportName: 'keep' }],
   });
   assert.match(out, /\.dowhile\(refiner, keep\)/);
 });
@@ -125,7 +125,7 @@ test('emits .foreach with concurrency and no condition import', () => {
       concurrency: 3,
     } }],
     agents: [], tools: [],
-    stepFiles: [{ id: 'process', filePath: 'step/process.ts', exportName: 'process' }],
+    stepFiles: [{ id: 'process', filePath: 'workflow/steps/process.ts', exportName: 'process' }],
     conditionFiles: [],
   });
   assert.match(out, /\.foreach\(process, \{ concurrency: 3 \}\)/);
@@ -146,7 +146,7 @@ test('emits a multi-step loop body as an inline nested workflow', () => {
       maxIterations: 3,
     } }],
     agents: [{ id: 'research-agent', exportName: 'researchAgent' }], tools: [],
-    stepFiles: [{ id: 'refine', filePath: 'step/refine.ts', exportName: 'refine' }],
+    stepFiles: [{ id: 'refine', filePath: 'workflow/steps/refine.ts', exportName: 'refine' }],
     conditionFiles: [],
   });
   assert.match(out, /createWorkflow\(\{ id: "flow-loop-1", inputSchema: z\.object\(\{ prompt: z\.string\(\) \}\), outputSchema: z\.object\(\{ text: z\.string\(\) \}\) \}\)/);

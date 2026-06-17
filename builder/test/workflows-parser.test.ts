@@ -144,7 +144,7 @@ test('a non-workflow project still parses (empty workflows list)', () => {
 test('resolves a step leaf and records it for copy', () => {
   const dir = makeProject({
     ...base('flow'),
-    'step/rephrase.ts': "import { createStep } from '@mastra/core/workflows';\nexport const rephrase = {};\n",
+    'workflow/steps/rephrase.ts': "import { createStep } from '@mastra/core/workflows';\nexport const rephrase = {};\n",
     'workflow/flow.yaml':
       'input: { prompt: string }\noutput: { text: string }\n' +
       'steps:\n  - agent: research-agent\n  - step: rephrase\n  - agent: support-agent\n',
@@ -159,13 +159,13 @@ test('errors on an unresolved step ref', () => {
     ...base('bad'),
     'workflow/bad.yaml': 'steps:\n  - step: ghost\n',
   });
-  assert.throws(() => parseProject(dir), /step not found: step\/ghost\.ts/);
+  assert.throws(() => parseProject(dir), /step not found: workflow\/steps\/ghost\.ts/);
 });
 
 test('errors when a leaf has more than one of agent/tool/step', () => {
   const dir = makeProject({
     ...base('bad'),
-    'step/rephrase.ts': 'export const rephrase = {};\n',
+    'workflow/steps/rephrase.ts': 'export const rephrase = {};\n',
     'workflow/bad.yaml': 'steps:\n  - tool: rephrase\n    step: rephrase\n',
   });
   assert.throws(() => parseProject(dir), /must have exactly one of/);
@@ -174,7 +174,7 @@ test('errors when a leaf has more than one of agent/tool/step', () => {
 test('resolves a single-leaf until loop: body + condition file', () => {
   const dir = makeProject({
     ...base('flow'),
-    'condition/good-enough.ts': 'export const goodEnough = async () => true;\n',
+    'workflow/condition/good-enough.ts': 'export const goodEnough = async () => true;\n',
     'workflow/flow.yaml':
       'steps:\n  - agent: research-agent\n  - loop:\n      until: good-enough\n      agent: support-agent\n      max_iterations: 4\n',
   });
@@ -191,8 +191,8 @@ test('resolves a single-leaf until loop: body + condition file', () => {
 test('resolves a multi-step while loop -> dowhile with a nested sequence', () => {
   const dir = makeProject({
     ...base('flow'),
-    'condition/keep.ts': 'export const keep = async () => false;\n',
-    'step/refine.ts': "import { createStep } from '@mastra/core/workflows';\nexport const refine = {};\n",
+    'workflow/condition/keep.ts': 'export const keep = async () => false;\n',
+    'workflow/steps/refine.ts': "import { createStep } from '@mastra/core/workflows';\nexport const refine = {};\n",
     'workflow/flow.yaml':
       'steps:\n  - loop:\n      while: keep\n      input: { prompt: string }\n      output: { text: string }\n' +
       '      steps:\n        - agent: research-agent\n        - step: refine\n',
@@ -210,7 +210,7 @@ test('resolves a multi-step while loop -> dowhile with a nested sequence', () =>
 test('resolves a foreach loop -> foreach with concurrency, no condition', () => {
   const dir = makeProject({
     ...base('flow'),
-    'step/process.ts': "export const process = {};\n",
+    'workflow/steps/process.ts': "export const process = {};\n",
     'workflow/flow.yaml': 'steps:\n  - loop:\n      foreach: true\n      step: process\n      concurrency: 2\n',
   });
   const loop = parseProject(dir).workflows[0].steps[0].loop!;
@@ -233,7 +233,7 @@ test('resolves a pure-count loop (max_iterations only) -> dountil', () => {
 test('errors when a loop has more than one driver', () => {
   const dir = makeProject({
     ...base('bad'),
-    'condition/c.ts': 'export const c = async () => true;\n',
+    'workflow/condition/c.ts': 'export const c = async () => true;\n',
     'workflow/bad.yaml': 'steps:\n  - loop:\n      until: c\n      foreach: true\n      agent: research-agent\n',
   });
   assert.throws(() => parseProject(dir), /loop has more than one of `until:`, `while:`, `foreach:`/);
@@ -249,25 +249,25 @@ test('errors when a loop has no driver (no until/while/foreach/max_iterations)',
 
 test('errors when a loop has no body or both body forms', () => {
   const dir1 = makeProject({ ...base('bad'),
-    'condition/c.ts': 'export const c = async () => true;\n',
+    'workflow/condition/c.ts': 'export const c = async () => true;\n',
     'workflow/bad.yaml': 'steps:\n  - loop:\n      until: c\n' });
   assert.throws(() => parseProject(dir1), /loop must have exactly one body/);
   const dir2 = makeProject({ ...base('bad2'),
-    'condition/c.ts': 'export const c = async () => true;\n',
+    'workflow/condition/c.ts': 'export const c = async () => true;\n',
     'workflow/bad2.yaml': 'steps:\n  - loop:\n      until: c\n      agent: research-agent\n      steps:\n        - agent: support-agent\n' });
   assert.throws(() => parseProject(dir2), /loop must have exactly one body/);
 });
 
 test('errors when a multi-step body omits input/output', () => {
   const dir = makeProject({ ...base('bad'),
-    'condition/c.ts': 'export const c = async () => true;\n',
+    'workflow/condition/c.ts': 'export const c = async () => true;\n',
     'workflow/bad.yaml': 'steps:\n  - loop:\n      until: c\n      steps:\n        - agent: research-agent\n' });
   assert.throws(() => parseProject(dir), /multi-step loop body requires `input:` and `output:`/);
 });
 
 test('errors when a single-leaf body declares input/output', () => {
   const dir = makeProject({ ...base('bad'),
-    'condition/c.ts': 'export const c = async () => true;\n',
+    'workflow/condition/c.ts': 'export const c = async () => true;\n',
     'workflow/bad.yaml': 'steps:\n  - loop:\n      until: c\n      agent: research-agent\n      input: { prompt: string }\n' });
   assert.throws(() => parseProject(dir), /`input:`\/`output:` are only for a multi-step `steps:` body/);
 });
@@ -275,19 +275,19 @@ test('errors when a single-leaf body declares input/output', () => {
 test('errors on an unresolved condition file', () => {
   const dir = makeProject({ ...base('bad'),
     'workflow/bad.yaml': 'steps:\n  - loop:\n      until: ghost\n      agent: research-agent\n' });
-  assert.throws(() => parseProject(dir), /condition not found: condition\/ghost\.ts/);
+  assert.throws(() => parseProject(dir), /condition not found: workflow\/condition\/ghost\.ts/);
 });
 
 test('errors when max_iterations is used with foreach', () => {
   const dir = makeProject({ ...base('bad'),
-    'step/process.ts': 'export const process = {};\n',
+    'workflow/steps/process.ts': 'export const process = {};\n',
     'workflow/bad.yaml': 'steps:\n  - loop:\n      foreach: true\n      step: process\n      max_iterations: 3\n' });
   assert.throws(() => parseProject(dir), /`max_iterations` is not valid with `foreach:`/);
 });
 
 test('errors when concurrency is used without foreach', () => {
   const dir = makeProject({ ...base('bad'),
-    'condition/c.ts': 'export const c = async () => true;\n',
+    'workflow/condition/c.ts': 'export const c = async () => true;\n',
     'workflow/bad.yaml': 'steps:\n  - loop:\n      until: c\n      agent: research-agent\n      concurrency: 2\n' });
   assert.throws(() => parseProject(dir), /`concurrency` is only valid with `foreach:`/);
 });

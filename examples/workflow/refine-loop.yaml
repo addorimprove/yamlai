@@ -7,6 +7,6 @@ output: { text: string, score: number }
 
 steps:
   - loop:
-      until: good-enough        # condition/good-enough.ts  ->  .dountil
-      step: refine              # body = one leaf (step/refine.ts)
+      until: good-enough        # workflow/condition/good-enough.ts  ->  .dountil
+      step: refine              # body = one leaf (workflow/steps/refine.ts)
       max_iterations: 5

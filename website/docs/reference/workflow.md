@@ -14,7 +14,7 @@ output: { text: string }       # → z.object({ text: z.string() })
 
 steps:
   - agent: research-agent      # { prompt } -> { text }   → agent/research-agent.yaml
-  - step:  rephrase            # { text }  -> { prompt }   → step/rephrase.ts (typed glue step)
+  - step:  rephrase            # { text }  -> { prompt }   → workflow/steps/rephrase.ts (typed glue step)
   - agent: support-agent       # { prompt } -> { text }
 ```
 
@@ -29,7 +29,7 @@ steps:
 
 Mastra workflows are identified by `id` (the filename) — there is no `name` field. A `name:` left in the YAML is ignored.
 
-`agent:`/`tool:`/`step:` reference the project's existing [agent/&lt;id&gt;.yaml](./agent.md) / [tools/&lt;id&gt;.ts](./tools.md) / [step/&lt;id&gt;.ts](./step.md) — each must resolve to an existing file (and `agent:` ids must be in [config.yaml](./config.md) `agents:`) or codegen fails.
+`agent:`/`tool:`/`step:` reference the project's existing [agent/&lt;id&gt;.yaml](./agent.md) / [tools/&lt;id&gt;.ts](./tools.md) / [workflow/steps/&lt;id&gt;.ts](./step.md) — each must resolve to an existing file (and `agent:` ids must be in [config.yaml](./config.md) `agents:`) or codegen fails.
 
 ## `input` / `output` schemas
 
@@ -54,7 +54,7 @@ A step is **exactly one** of:
 |---|---|---|
 | `agent: <id>` | `.then(createStep(agentExport))` | Reads `{ prompt }`, writes `{ text }`. |
 | `tool: <id>` | `.then(createStep(toolExport))` | Uses the tool's own `inputSchema`/`outputSchema`. |
-| `step: <id>` | `.then(stepExport)` | A custom [step/&lt;id&gt;.ts](./step.md) — used **directly** (already a `Step`, so **not** wrapped in `createStep`). Prefer over a glue `tool:` when you want the reshaping's `execute` **type-checked**. |
+| `step: <id>` | `.then(stepExport)` | A custom [workflow/steps/&lt;id&gt;.ts](./step.md) — used **directly** (already a `Step`, so **not** wrapped in `createStep`). Prefer over a glue `tool:` when you want the reshaping's `execute` **type-checked**. |
 | `parallel: [ … ]` | `.parallel([createStep(a), b])` | ≥2 **distinct** children (`agent`/`tool`/`step`); all run on the **same** input. After a `parallel`, the next step's input is **one object keyed by each child step's id**. Listing the same id twice is a parse error (the keys would collide). |
 | `loop: { … }` | `.dountil` / `.dowhile` / `.foreach` | Repeat a body. See [Loops](#loops) below. Top-level only — a `loop` can't be a `parallel` child. |
 
@@ -136,8 +136,8 @@ picks the Mastra method:
 
 | Driver | Method | Repeats… | Needs |
 |---|---|---|---|
-| `until: <id>` | `.dountil(body, cond)` | **until** the predicate returns `true` | [condition/&lt;id&gt;.ts](./condition.md) |
-| `while: <id>` | `.dowhile(body, cond)` | **while** the predicate returns `true` | [condition/&lt;id&gt;.ts](./condition.md) |
+| `until: <id>` | `.dountil(body, cond)` | **until** the predicate returns `true` | [workflow/condition/&lt;id&gt;.ts](./condition.md) |
+| `while: <id>` | `.dowhile(body, cond)` | **while** the predicate returns `true` | [workflow/condition/&lt;id&gt;.ts](./condition.md) |
 | `foreach: true` | `.foreach(body, opts?)` | once **per element** of the previous step's array output | — |
 | `max_iterations:` alone | `.dountil(body, …count)` | a fixed number of times | — |
 
@@ -158,8 +158,8 @@ input:  { text: string, score: number }
 output: { text: string, score: number }
 steps:
   - loop:
-      until: good-enough     # condition/good-enough.ts
-      step: refine           # step/refine.ts
+      until: good-enough     # workflow/condition/good-enough.ts
+      step: refine           # workflow/steps/refine.ts
       max_iterations: 5
 ```
 
@@ -214,8 +214,8 @@ steps:
 - **`foreach` requires the previous step to output an array.** This is enforced at the generated
   project's strict `tsc` (Mastra types the body arg as the literal string `'Previous step must
   return an array type'` otherwise), not at parse time.
-- A `condition/<id>.ts` predicate's `inputData` is the **body's output** — type it to match, or the
-  generated project's `tsc` fails. See [condition/&lt;id&gt;.ts](./condition.md).
+- A `workflow/condition/<id>.ts` predicate's `inputData` is the **body's output** — type it to match, or the
+  generated project's `tsc` fails. See [workflow/condition/&lt;id&gt;.ts](./condition.md).
 
 ## Registration — `config.yaml`
 

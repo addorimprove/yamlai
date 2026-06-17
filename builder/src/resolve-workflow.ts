@@ -149,7 +149,7 @@ class WorkflowResolver {
       return { kind: 'tool', id, exportName };
     }
     const id = node.step!;
-    const filePath = `step/${id}.ts`;
+    const filePath = `workflow/steps/${id}.ts`;
     if (!this.fileExists(filePath)) {
       this.issue(`step not found: ${filePath}`);
       return undefined;
@@ -225,7 +225,7 @@ class WorkflowResolver {
     let condition: ResolvedFileRef | undefined;
     if (lp.until !== undefined || lp.while !== undefined) {
       const condId = (lp.until ?? lp.while)!;
-      const filePath = `condition/${condId}.ts`;
+      const filePath = `workflow/condition/${condId}.ts`;
       if (!this.fileExists(filePath)) {
         this.fail(`condition not found: ${filePath}`);
         return undefined;

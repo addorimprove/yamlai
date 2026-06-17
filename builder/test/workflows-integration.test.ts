@@ -68,7 +68,7 @@ test('copies a referenced step verbatim into workflows/steps/', () => {
     'agent/a.yaml': 'name: A\ninstructions: p\nmodel: m\n',
     'prompt/p.md': 'hi\n',
     'model/m.yaml': 'provider: openai\nmodel: gpt-5-mini\n',
-    'step/rephrase.ts': "import { createStep } from '@mastra/core/workflows';\nexport const rephrase = {};\n",
+    'workflow/steps/rephrase.ts': "import { createStep } from '@mastra/core/workflows';\nexport const rephrase = {};\n",
     'workflow/w.yaml': 'input: { prompt: string }\noutput: { text: string }\nsteps:\n  - agent: a\n  - step: rephrase\n',
   });
   const files = generateProject(parseProject(dir), dir);
@@ -82,7 +82,7 @@ test('copies a referenced condition verbatim into workflows/condition/', () => {
     'agent/a.yaml': 'name: A\ninstructions: p\nmodel: m\n',
     'prompt/p.md': 'hi\n',
     'model/m.yaml': 'provider: openai\nmodel: gpt-5-mini\n',
-    'condition/good-enough.ts': 'export const goodEnough = async () => true;\n',
+    'workflow/condition/good-enough.ts': 'export const goodEnough = async () => true;\n',
     'workflow/w.yaml': 'steps:\n  - loop:\n      until: good-enough\n      agent: a\n',
   });
   const files = generateProject(parseProject(dir), dir);

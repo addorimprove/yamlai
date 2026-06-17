@@ -7,5 +7,5 @@ output: { text: string }       # matches an agent step's output shape directly
 
 steps:
   - agent: research-agent      # { prompt } -> { text }
-  - step:  rephrase            # { text }  -> { prompt }   (glue step, step/rephrase.ts — typed execute)
+  - step:  rephrase            # { text }  -> { prompt }   (glue step, workflow/steps/rephrase.ts — typed execute)
   - agent: support-agent       # { prompt } -> { text }
