@@ -1,7 +1,7 @@
 # Loop demo (multi-step body). The body is a two-stage sequence, emitted as an
 # inline nested workflow (a Workflow is itself a Step). Requires input/output to
 # type the nested workflow's schemas.
-description: Run a two-stage refine body in a loop until good enough.
+description: Run a two-stage revise body in a loop until good enough.
 
 input:  { text: string, score: number }
 output: { text: string, score: number }

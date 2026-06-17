@@ -1,12 +1,12 @@
-name: my-mastra-app
+name: content-assistant
 agents:
-  - support-agent
-  - research-agent
+  - writer-agent
+  - editor-agent
 workflows:                 # registered on the Mastra instance (workflow/<id>.yaml)
-  - research-flow          # sequential: research-agent -> rephrase(step) -> support-agent
-  - compare-answers        # parallel:   [research-agent | support-agent] -> merge-answers(tool)
-  - refine-loop            # loop:       .dountil(refine, good-enough) — single-leaf body
-  - draft-loop             # loop:       .dountil(nested [refine, score], good-enough) — multi-step body
+  - draft-flow             # sequential: writer-agent -> brief(step) -> editor-agent
+  - compare-drafts         # parallel:   [writer-agent | editor-agent] -> merge-drafts(tool)
+  - polish-loop            # loop:       .dountil(refine, good-enough) — single-leaf body
+  - revise-loop            # loop:       .dountil(nested [refine, score], good-enough) — multi-step body
 logger:
   level: info
 storage:
@@ -22,6 +22,6 @@ memory:
   working_memory:
     scope: resource
     template: |
-      # User Profile
-      - Name:
-      - Plan tier:
+      # Writing Preferences
+      - Tone:
+      - Audience:

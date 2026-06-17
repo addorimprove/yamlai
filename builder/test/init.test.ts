@@ -25,7 +25,7 @@ test('runInit rewrites config name to the target basename', () => {
   runInit([target]);
   const config = readFileSync(join(target, 'config.yaml'), 'utf8');
   assert.match(config, /^name: my-cool-app$/m);
-  assert.doesNotMatch(config, /my-mastra-app/);
+  assert.doesNotMatch(config, /content-assistant/);
 });
 
 test('runInit writes README.md and .env.example', () => {

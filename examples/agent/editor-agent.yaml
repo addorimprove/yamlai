@@ -1,0 +1,7 @@
+name: Editor
+description: Reviews and improves drafts for the writer.
+instructions: editor-prompt
+model: gpt-5-mini
+# Self-delegation: recursively edit sub-sections with itself.
+agents:
+  - editor-agent

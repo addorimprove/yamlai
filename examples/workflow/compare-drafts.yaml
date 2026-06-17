@@ -1,0 +1,11 @@
+# Parallel fan-out + merge.
+description: Have the writer and editor each draft from the same brief, then merge.
+
+input:  { prompt: string }     # → z.object({ prompt: z.string() })
+output: { comparison: string }
+
+steps:
+  - parallel:                  # both agents run at once on the same { prompt }
+      - agent: writer-agent
+      - agent: editor-agent
+  - tool: merge-drafts         # { 'writer-agent': {text}, 'editor-agent': {text} } -> { comparison }
