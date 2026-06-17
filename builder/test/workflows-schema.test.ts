@@ -47,3 +47,38 @@ test('WorkflowSchema accepts a step leaf (plain and parallel child)', () => {
   assert.equal(wf.steps[0].step, 'rephrase');
   assert.equal(wf.steps[1].parallel?.[0].step, 'a');
 });
+
+test('WorkflowSchema accepts a single-leaf loop (until + body + max_iterations)', () => {
+  const wf = WorkflowSchema.parse({
+    steps: [
+      { agent: 'drafter' },
+      { loop: { until: 'good-enough', step: 'refiner', max_iterations: 5 } },
+    ],
+  });
+  assert.equal(wf.steps[1].loop?.until, 'good-enough');
+  assert.equal(wf.steps[1].loop?.step, 'refiner');
+  assert.equal(wf.steps[1].loop?.max_iterations, 5);
+});
+
+test('WorkflowSchema accepts a multi-step loop body with input/output', () => {
+  const wf = WorkflowSchema.parse({
+    steps: [{ loop: {
+      while: 'keep',
+      input: { text: 'string', score: 'number' },
+      output: { text: 'string', score: 'number' },
+      steps: [{ agent: 'drafter' }, { step: 'refine' }],
+    } }],
+  });
+  assert.equal(wf.steps[0].loop?.while, 'keep');
+  assert.equal(wf.steps[0].loop?.steps?.length, 2);
+});
+
+test('WorkflowSchema accepts a foreach loop and a pure-count loop', () => {
+  assert.equal(WorkflowSchema.safeParse({ steps: [{ loop: { foreach: true, step: 'p', concurrency: 3 } }] }).success, true);
+  assert.equal(WorkflowSchema.safeParse({ steps: [{ loop: { step: 'poll', max_iterations: 10 } }] }).success, true);
+});
+
+test('WorkflowSchema rejects non-positive/non-int max_iterations and concurrency', () => {
+  assert.equal(WorkflowSchema.safeParse({ steps: [{ loop: { until: 'c', step: 's', max_iterations: 0 } }] }).success, false);
+  assert.equal(WorkflowSchema.safeParse({ steps: [{ loop: { foreach: true, step: 's', concurrency: 1.5 } }] }).success, false);
+});

@@ -80,11 +80,31 @@ const WorkflowLeafSchema = z.object({
   step: z.string().min(1).optional(),
 });
 
+// A loop wraps a body (single leaf OR a `steps:` sequence) with a driver
+// (until/while/foreach/max_iterations). Exactly-one-of rules enforced in the parser.
+const LoopSchema = z.object({
+  until: z.string().min(1).optional(),
+  while: z.string().min(1).optional(),
+  foreach: z.boolean().optional(),
+  // single-leaf body:
+  agent: z.string().min(1).optional(),
+  tool: z.string().min(1).optional(),
+  step: z.string().min(1).optional(),
+  // multi-step body (requires input/output):
+  steps: z.array(WorkflowLeafSchema).optional(),
+  input: z.record(z.string(), z.unknown()).optional(),
+  output: z.record(z.string(), z.unknown()).optional(),
+  // guards:
+  max_iterations: z.number().int().positive().optional(),
+  concurrency: z.number().int().positive().optional(),
+});
+
 const WorkflowStepSchema = z.object({
   agent: z.string().min(1).optional(),
   tool: z.string().min(1).optional(),
   step: z.string().min(1).optional(),
   parallel: z.array(WorkflowLeafSchema).optional(),
+  loop: LoopSchema.optional(),
 });
 
 export const WorkflowSchema = z.object({
