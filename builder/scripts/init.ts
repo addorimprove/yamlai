@@ -66,7 +66,8 @@ export function runInit(argv: string[]): void {
   const target = resolve(process.cwd(), dirArg);
   const name = basename(target);
 
-  const files = readTemplate(resolveTemplateDir());
+  const templateDir = resolveTemplateDir();
+  const files = readTemplate(templateDir);
 
   // Rewrite the top-level `name:` in config.yaml to the target dir basename so a
   // later bare `yamlai generate <dir>` emits to a predictably named folder.
@@ -77,6 +78,6 @@ export function runInit(argv: string[]): void {
   files['README.md'] = README(name);
   files['.env.example'] = ENV_EXAMPLE;
 
-  writeProject(files, target, resolveTemplateDir(), { force });
+  writeProject(files, target, templateDir, { force });
   console.log(`Initialized ${name}/ (${Object.keys(files).length} files). Next: yamlai generate ${dirArg}`);
 }

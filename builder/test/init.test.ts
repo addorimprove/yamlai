@@ -31,6 +31,7 @@ test('runInit writes README.md and .env.example', () => {
   const target = join(tempDir(), 'app');
   runInit([target]);
   assert.ok(existsSync(join(target, 'README.md')));
+  assert.match(readFileSync(join(target, 'README.md'), 'utf8'), /^# app$/m);
   assert.ok(existsSync(join(target, '.env.example')));
   assert.match(readFileSync(join(target, '.env.example'), 'utf8'), /OPENAI_API_KEY=/);
 });
