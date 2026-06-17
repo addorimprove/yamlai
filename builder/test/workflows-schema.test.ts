@@ -23,10 +23,12 @@ test('WorkflowSchema accepts agent/tool/parallel steps and defaults description/
   assert.equal(wf.steps.length, 3);
 });
 
-test('WorkflowSchema requires at least one step but not a name', () => {
+test('WorkflowSchema requires at least one step and rejects a stray name', () => {
   assert.equal(WorkflowSchema.safeParse({ steps: [] }).success, false);
-  // name is no longer part of the schema — a workflow without one parses fine.
+  // a workflow without a name parses fine...
   assert.equal(WorkflowSchema.safeParse({ steps: [{ agent: 'a' }] }).success, true);
+  // ...and a stray `name` is now an error (strict schema), not silently ignored.
+  assert.equal(WorkflowSchema.safeParse({ name: 'x', steps: [{ agent: 'a' }] }).success, false);
 });
 
 test('WorkflowSchema defaults input/output to empty objects', () => {

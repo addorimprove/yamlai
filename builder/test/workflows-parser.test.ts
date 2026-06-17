@@ -38,7 +38,7 @@ test('resolves a sequential workflow with agent + tool steps', () => {
   const dir = makeProject({
     ...base('research-flow'),
     'workflow/research-flow.yaml':
-      'name: Research Flow\ninput: { prompt: string }\noutput: { text: string }\n' +
+      'input: { prompt: string }\noutput: { text: string }\n' +
       'steps:\n  - agent: research-agent\n  - tool: rephrase\n  - agent: support-agent\n',
   });
   const project = parseProject(dir);
@@ -55,7 +55,7 @@ test('resolves a parallel workflow and dedupes referenced agents/tools', () => {
   const dir = makeProject({
     ...base('compare-answers'),
     'workflow/compare-answers.yaml':
-      'name: Compare\ninput: { prompt: string }\noutput: { comparison: string }\n' +
+      'input: { prompt: string }\noutput: { comparison: string }\n' +
       'steps:\n  - parallel:\n      - agent: research-agent\n      - agent: support-agent\n  - tool: merge-answers\n',
   });
   const wf = parseProject(dir).workflows[0];
@@ -72,7 +72,7 @@ test('errors when a workflow file is missing', () => {
 test('errors on an unresolved agent ref', () => {
   const dir = makeProject({
     ...base('bad'),
-    'workflow/bad.yaml': 'name: B\nsteps:\n  - agent: nobody\n',
+    'workflow/bad.yaml': 'steps:\n  - agent: nobody\n',
   });
   assert.throws(() => parseProject(dir), /agent not found: nobody/);
 });
@@ -80,7 +80,7 @@ test('errors on an unresolved agent ref', () => {
 test('errors on an unresolved tool ref', () => {
   const dir = makeProject({
     ...base('bad'),
-    'workflow/bad.yaml': 'name: B\nsteps:\n  - tool: nope\n',
+    'workflow/bad.yaml': 'steps:\n  - tool: nope\n',
   });
   assert.throws(() => parseProject(dir), /tool not found: tools\/nope\.ts/);
 });
@@ -88,7 +88,7 @@ test('errors on an unresolved tool ref', () => {
 test('errors when a step has neither agent/tool/parallel or more than one', () => {
   const dir = makeProject({
     ...base('bad'),
-    'workflow/bad.yaml': 'name: B\nsteps:\n  - agent: research-agent\n    tool: rephrase\n',
+    'workflow/bad.yaml': 'steps:\n  - agent: research-agent\n    tool: rephrase\n',
   });
   assert.throws(() => parseProject(dir), /step 1 must have exactly one of/);
 });
@@ -96,7 +96,7 @@ test('errors when a step has neither agent/tool/parallel or more than one', () =
 test('errors when a parallel block has fewer than 2 children', () => {
   const dir = makeProject({
     ...base('bad'),
-    'workflow/bad.yaml': 'name: B\nsteps:\n  - parallel:\n      - agent: research-agent\n',
+    'workflow/bad.yaml': 'steps:\n  - parallel:\n      - agent: research-agent\n',
   });
   assert.throws(() => parseProject(dir), /needs at least 2 steps/);
 });
@@ -115,7 +115,7 @@ test('errors when a parallel block lists the same agent/tool twice', () => {
 test('errors on an unsupported input field type', () => {
   const dir = makeProject({
     ...base('bad'),
-    'workflow/bad.yaml': 'name: B\ninput: { when: date }\nsteps:\n  - agent: research-agent\n',
+    'workflow/bad.yaml': 'input: { when: date }\nsteps:\n  - agent: research-agent\n',
   });
   assert.throws(() => parseProject(dir), /input\.when: unknown primitive `date`/);
 });
@@ -126,7 +126,7 @@ test('rejects a workflow id colliding with an agent id at registry scope', () =>
     'agent/research-agent.yaml': 'name: R\ninstructions: p\nmodel: m\n',
     'prompt/p.md': PROMPT,
     'model/m.yaml': MODEL,
-    'workflow/research_agent.yaml': 'name: W\nsteps:\n  - agent: research-agent\n',
+    'workflow/research_agent.yaml': 'steps:\n  - agent: research-agent\n',
   });
   assert.throws(() => parseProject(dir), /export name `researchAgent` is produced by multiple bindings/);
 });
@@ -296,5 +296,6 @@ test('errors when a loop is used as a parallel child', () => {
   const dir = makeProject({ ...base('bad'),
     'workflow/bad.yaml':
       'steps:\n  - parallel:\n      - agent: research-agent\n      - loop:\n          foreach: true\n          agent: support-agent\n' });
-  assert.throws(() => parseProject(dir), /must have exactly one of/);
+  // `loop` is not a valid key on a parallel child (WorkflowLeafSchema.strict() catches it first).
+  assert.throws(() => parseProject(dir), /loop/);
 });

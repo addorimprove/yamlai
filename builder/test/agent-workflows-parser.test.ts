@@ -28,7 +28,7 @@ test('resolves agent.workflows into ResolvedWorkflowRef and marks acyclic as not
     'config.yaml': 'name: x\nagents: [worker, support-agent]\nworkflows: [flow]\n',
     'agent/worker.yaml': 'name: W\ninstructions: p\nmodel: m\nworkflows: [flow]\n',
     'agent/support-agent.yaml': 'name: S\ninstructions: p\nmodel: m\n',
-    'workflow/flow.yaml': 'name: F\nsteps:\n  - agent: support-agent\n',
+    'workflow/flow.yaml': 'steps:\n  - agent: support-agent\n',
   });
   const worker = parseProject(dir).agents.find((a) => a.id === 'worker')!;
   assert.deepEqual(worker.workflows, [{ id: 'flow', exportName: 'flow' }]);
@@ -41,7 +41,7 @@ test('flags an agent on an agent->workflow->agent cycle as lazyWorkflows', () =>
     ...COMMON,
     'config.yaml': 'name: x\nagents: [worker]\nworkflows: [flow]\n',
     'agent/worker.yaml': 'name: W\ninstructions: p\nmodel: m\nworkflows: [flow]\n',
-    'workflow/flow.yaml': 'name: F\nsteps:\n  - agent: worker\n',
+    'workflow/flow.yaml': 'steps:\n  - agent: worker\n',
   });
   const worker = parseProject(dir).agents.find((a) => a.id === 'worker')!;
   assert.equal(worker.lazyWorkflows, true);
@@ -64,7 +64,7 @@ test('rejects an attached-workflow import colliding with a tool import in the ag
     'agent/worker.yaml': 'name: W\ninstructions: p\nmodel: m\ntools: [loop_flow]\nworkflows: [loop-flow]\n',
     'agent/support-agent.yaml': 'name: S\ninstructions: p\nmodel: m\n',
     'tools/loop_flow.ts': 'export const loopFlow = {};\n',
-    'workflow/loop-flow.yaml': 'name: F\nsteps:\n  - agent: support-agent\n',
+    'workflow/loop-flow.yaml': 'steps:\n  - agent: support-agent\n',
   });
   assert.throws(() => parseProject(dir), /export name `loopFlow` is produced by multiple bindings/);
 });

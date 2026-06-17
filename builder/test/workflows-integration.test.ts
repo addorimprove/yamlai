@@ -29,7 +29,7 @@ function project(): string {
     'model/m.yaml': 'provider: openai\nmodel: gpt-5-mini\n',
     'tools/merge-answers.ts': TOOL,
     'workflow/compare-answers.yaml':
-      'name: Compare\ninput: { prompt: string }\noutput: { comparison: string }\n' +
+      'input: { prompt: string }\noutput: { comparison: string }\n' +
       'steps:\n  - parallel:\n      - agent: research-agent\n      - agent: support-agent\n  - tool: merge-answers\n',
   });
 }
@@ -55,7 +55,7 @@ test('copies a shared tool exactly once', () => {
     'prompt/p.md': 'hi\n',
     'model/m.yaml': 'provider: openai\nmodel: gpt-5-mini\n',
     'tools/shared.ts': TOOL,
-    'workflow/w.yaml': 'name: W\nsteps:\n  - agent: a\n  - tool: shared\n',
+    'workflow/w.yaml': 'steps:\n  - agent: a\n  - tool: shared\n',
   });
   const files = generateProject(parseProject(dir), dir);
   assert.ok(files['src/mastra/tools/shared.ts']);
