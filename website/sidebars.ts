@@ -17,6 +17,7 @@ const sidebars: SidebarsConfig = {
         'reference/tools',
         'reference/memory',
         'reference/workflow',
+        'reference/step',
       ],
     },
     'cli',

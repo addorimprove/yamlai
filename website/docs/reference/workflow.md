@@ -4,7 +4,7 @@ title: "workflow/<id>.yaml"
 
 # workflow/&lt;id&gt;.yaml
 
-One file per workflow — a declarative graph of `agent`/`tool` steps that run **sequentially** (`.then`) and/or in **parallel** (`.parallel`). The id is the filename (`workflow/research-flow.yaml` → id `research-flow`, export `researchFlow`). Also list the id in [config.yaml](./config.md) `workflows:`.
+One file per workflow — a declarative graph of `agent`/`tool`/`step` steps that run **sequentially** (`.then`) and/or in **parallel** (`.parallel`). The id is the filename (`workflow/research-flow.yaml` → id `research-flow`, export `researchFlow`). Also list the id in [config.yaml](./config.md) `workflows:`.
 
 ```yaml
 description: Research a question, then have the support agent answer from the notes.
@@ -14,7 +14,7 @@ output: { text: string }       # → z.object({ text: z.string() })
 
 steps:
   - agent: research-agent      # { prompt } -> { text }   → agent/research-agent.yaml
-  - tool:  rephrase            # { text }  -> { prompt }   → tools/rephrase.ts (glue tool)
+  - step:  rephrase            # { text }  -> { prompt }   → step/rephrase.ts (typed glue step)
   - agent: support-agent       # { prompt } -> { text }
 ```
 
@@ -29,7 +29,7 @@ steps:
 
 Mastra workflows are identified by `id` (the filename) — there is no `name` field. A `name:` left in the YAML is ignored.
 
-`agent:`/`tool:` reference the project's existing [agent/&lt;id&gt;.yaml](./agent.md) / [tools/&lt;id&gt;.ts](./tools.md) — each must resolve to an existing file (and `agent:` ids must be in [config.yaml](./config.md) `agents:`) or codegen fails.
+`agent:`/`tool:`/`step:` reference the project's existing [agent/&lt;id&gt;.yaml](./agent.md) / [tools/&lt;id&gt;.ts](./tools.md) / [step/&lt;id&gt;.ts](./step.md) — each must resolve to an existing file (and `agent:` ids must be in [config.yaml](./config.md) `agents:`) or codegen fails.
 
 ## `input` / `output` schemas
 
@@ -54,31 +54,32 @@ A step is **exactly one** of:
 |---|---|---|
 | `agent: <id>` | `.then(createStep(agentExport))` | Reads `{ prompt }`, writes `{ text }`. |
 | `tool: <id>` | `.then(createStep(toolExport))` | Uses the tool's own `inputSchema`/`outputSchema`. |
-| `parallel: [ … ]` | `.parallel([createStep(a), createStep(b)])` | ≥2 **distinct** children (`agent`/`tool`); all run on the **same** input. After a `parallel`, the next step's input is **one object keyed by each child step's id**. Listing the same agent/tool twice is a parse error (the keys would collide). |
+| `step: <id>` | `.then(stepExport)` | A custom [step/&lt;id&gt;.ts](./step.md) — used **directly** (already a `Step`, so **not** wrapped in `createStep`). Prefer over a glue `tool:` when you want the reshaping's `execute` **type-checked**. |
+| `parallel: [ … ]` | `.parallel([createStep(a), b])` | ≥2 **distinct** children (`agent`/`tool`/`step`); all run on the **same** input. After a `parallel`, the next step's input is **one object keyed by each child step's id**. Listing the same id twice is a parse error (the keys would collide). |
 
 Steps run in declaration order; each step's output is the next step's input. The chain is finalized with `.commit()`.
 
 ## Worked example — sequential
 
-`input { prompt }` → `agent: research-agent` → `tool: rephrase` (glue, `{ text }`→`{ prompt }`) → `agent: support-agent` → `output { text }`.
+`input { prompt }` → `agent: research-agent` → `step: rephrase` (typed glue, `{ text }`→`{ prompt }`) → `agent: support-agent` → `output { text }`.
 
 ```yaml title="workflow/research-flow.yaml"
 input:  { prompt: string }
 output: { text: string }
 steps:
   - agent: research-agent
-  - tool:  rephrase
+  - step:  rephrase
   - agent: support-agent
 ```
 
-Generates `src/mastra/workflows/research-flow.ts`:
+Generates `src/mastra/workflows/research-flow.ts` — note `rephrase` is a [step](./step.md), so it's used **directly** while the agents are wrapped in `createStep(...)`:
 
 ```typescript
 import { createWorkflow, createStep } from '@mastra/core/workflows';
 import { z } from 'zod';
 import { researchAgent } from '../agents/research-agent';
 import { supportAgent } from '../agents/support-agent';
-import { rephrase } from '../tools/rephrase';
+import { rephrase } from './steps/rephrase';
 
 export const researchFlow = createWorkflow({
   id: 'research-flow',
@@ -87,7 +88,7 @@ export const researchFlow = createWorkflow({
   outputSchema: z.object({ text: z.string() }),
 })
   .then(createStep(researchAgent))
-  .then(createStep(rephrase))
+  .then(rephrase)
   .then(createStep(supportAgent))
   .commit();
 ```
@@ -147,7 +148,7 @@ export const mastra = new Mastra({
 });
 ```
 
-Workflow-referenced tools (like `rephrase`, `merge-answers`) are copied verbatim into `src/mastra/tools/`, deduped with per-agent tools.
+Workflow-referenced tools (like `merge-answers`) are copied verbatim into `src/mastra/tools/`, deduped with per-agent tools; workflow-referenced [steps](./step.md) (like `rephrase`) are copied into `src/mastra/workflows/steps/`.
 
 ## Attaching workflows to an agent (`agent.workflows`)
 
@@ -183,8 +184,8 @@ The generated project is fully strict (`strict: true`, incl. `strictFunctionType
 
 3. **After a `parallel`, the next step takes a record.** `.parallel([...])` produces a result keyed by each child's step id, typed as `z.record(z.string(), <commonChildOutput>)`. The consuming `tool:`/`step:` must declare that record shape (not exact keys), and all parallel children should share one output shape — see the parallel worked example.
 
-4. **Tool `execute` signature.** A `tool:` step uses the tool's `execute` as-is. In this Mastra version a tool receives its input as the **first positional argument** — `execute: async (inputData) => ({ ... })`. A tool written the older way (`execute: async ({ context }) => …`) compiles but `context` is `undefined` at run time. Match the example tools (`tools/rephrase.ts`, `tools/merge-answers.ts`).
+4. **Tool `execute` signature.** A `tool:` step uses the tool's `execute` as-is. In this Mastra version a tool receives its input as the **first positional argument** — `execute: async (inputData) => ({ ... })`. A tool written the older way (`execute: async ({ context }) => …`) compiles but `context` is `undefined` at run time. Match the example tool (`tools/merge-answers.ts`). A [step](./step.md) does not have this pitfall — its `execute` is `async ({ inputData }) => …` and `inputData` is typed from `inputSchema`.
 
 ## Not in this version
 
-Control flow beyond sequential `.then` + `.parallel` is deferred: `branch`/conditions, `loop`/`foreach`, a custom `step/` resource, a custom `schema/` escape hatch, and human-in-the-loop (suspend/resume). See the **Deferred** section of the workflows design spec (`.planning/superpowers/specs/2026-06-14-workflows-design.md`) for the full list and engine notes.
+Control flow beyond sequential `.then` + `.parallel` is deferred: `branch`/conditions, `loop`/`foreach`, a custom `schema/` escape hatch, and human-in-the-loop (suspend/resume). See the **Deferred** section of the workflows design spec (`.planning/superpowers/specs/2026-06-14-workflows-design.md`) for the full list and engine notes.

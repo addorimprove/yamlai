@@ -13,7 +13,11 @@ test('the bundled examples generate workflow files + register them', () => {
   const files = generateProject(project, examples);
   assert.ok(files['src/mastra/workflows/research-flow.ts']);
   assert.ok(files['src/mastra/workflows/compare-answers.ts']);
-  assert.ok(files['src/mastra/tools/rephrase.ts']);
+  // rephrase is a custom step now (typed execute) — copied to workflows/steps/ and
+  // used directly (no createStep wrapper) in the research-flow chain.
+  assert.ok(files['src/mastra/workflows/steps/rephrase.ts']);
+  assert.match(files['src/mastra/workflows/research-flow.ts'], /import \{ rephrase \} from '\.\/steps\/rephrase';/);
+  assert.match(files['src/mastra/workflows/research-flow.ts'], /\.then\(rephrase\)/);
   assert.ok(files['src/mastra/tools/merge-answers.ts']);
   assert.match(files['src/mastra/index.ts'], /workflows: \{ researchFlow, compareAnswers \},/);
   // support-agent attaches compare-answers, which runs support-agent itself — an
