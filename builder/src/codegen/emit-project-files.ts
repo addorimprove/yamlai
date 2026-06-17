@@ -38,6 +38,14 @@ export function emitTsconfig(): string {
       esModuleInterop: true,
       forceConsistentCasingInFileNames: true,
       strict: true,
+      // Mastra's `createStep(agent)` returns a step whose `execute` reads a
+      // concrete `{ prompt }` input. Under `strictFunctionTypes` that function
+      // property is checked contravariantly against the `unknown` input that
+      // `.then()` infers, so EVERY agent-step workflow fails to typecheck. We
+      // relax just this one flag (keeping the rest of `strict`); genuine
+      // step-to-step IO mismatches are still caught — they surface on the
+      // step's `inputSchema`/`outputSchema` data properties, not on `execute`.
+      strictFunctionTypes: false,
       skipLibCheck: true,
       noEmit: true,
       outDir: 'dist',
