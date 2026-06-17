@@ -72,8 +72,8 @@ export function runInit(argv: string[]): void {
   const templateDir = resolveTemplateDir();
   const files = readTemplate(templateDir);
 
-  // Rewrite the top-level `name:` in config.yaml to the target dir basename so a
-  // later bare `yamlai generate <dir>` emits to a predictably named folder.
+  // Rewrite the top-level `name:` in config.yaml to the target dir basename so the
+  // scaffolded project's name matches its folder.
   if (files['config.yaml']) {
     files['config.yaml'] = files['config.yaml'].replace(/^name:[^\n]*/m, `name: ${name}`);
   }
@@ -82,5 +82,8 @@ export function runInit(argv: string[]): void {
   files['.env.example'] = ENV_EXAMPLE;
 
   writeProject(files, target, templateDir, { force });
-  console.log(`Initialized ${name}/ (${Object.keys(files).length} files). Next: yamlai generate ${dirArg}`);
+  console.log(
+    `Initialized ${name}/ (${Object.keys(files).length} files). ` +
+      `Next: yamlai generate ${dirArg} ${dirArg}-build`,
+  );
 }
