@@ -43,8 +43,9 @@ yamlai generate . ../${name}-build  # emit the Mastra app to ../${name}-build
 
 ## Configure secrets
 
-Copy \`.env.example\` to \`.env\` and fill in your keys (the template uses OpenAI
-models and embeddings).
+The dev server boots without any key. To actually chat with the agents, copy
+\`.env.example\` to \`.env\` and set \`OPENAI_API_KEY\` (the default model is
+\`openai/gpt-5-mini\` — change \`model/\` to use a different provider).
 
 ## Layout
 
@@ -56,7 +57,8 @@ models and embeddings).
 - \`tools/\` — tool implementations
 `;
 
-const ENV_EXAMPLE = `# Required by the generated Mastra app (OpenAI models + embeddings).
+const ENV_EXAMPLE = `# Only needed to chat with the agents (default model: openai/gpt-5-mini).
+# The dev server boots without it.
 OPENAI_API_KEY=
 `;
 
