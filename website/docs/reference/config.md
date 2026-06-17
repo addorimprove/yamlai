@@ -46,7 +46,7 @@ export const mastra = new Mastra({
 
 Only agents are registered. `storage` is omitted entirely if absent. Kebab-case ids → camelCase exports (`support-agent` → `supportAgent`).
 
-## Id naming {#id-naming}
+## Id naming
 
 Every id (agent, workflow, tool, step, condition) becomes a generated `import`/`export` name via that kebab/snake → camelCase mapping, so it must produce a **valid, non-reserved JavaScript identifier**. `validate` rejects an id up front when its camelCase form:
 
