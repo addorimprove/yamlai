@@ -19,7 +19,10 @@ test('the bundled examples generate workflow files + register them', () => {
   assert.match(files['src/mastra/workflows/research-flow.ts'], /import \{ rephrase \} from '\.\/steps\/rephrase';/);
   assert.match(files['src/mastra/workflows/research-flow.ts'], /\.then\(rephrase\)/);
   assert.ok(files['src/mastra/tools/merge-answers.ts']);
-  assert.match(files['src/mastra/index.ts'], /workflows: \{ researchFlow, compareAnswers \},/);
+  assert.match(
+    files['src/mastra/index.ts'],
+    /workflows: \{ researchFlow, compareAnswers, refineLoop, draftLoop \},/,
+  );
   // support-agent attaches compare-answers, which runs support-agent itself — an
   // agent⇄workflow cycle, so it is emitted lazily via mastra.getWorkflow keyed by
   // the registration (export) name, with the `mastra!` assertion the thunk requires.
@@ -27,4 +30,21 @@ test('the bundled examples generate workflow files + register them', () => {
     files['src/mastra/agents/support-agent.ts'],
     /workflows: \(\{ mastra \}\) => \(\{ compareAnswers: mastra!\.getWorkflow\("compareAnswers"\) \}\)/,
   );
+});
+
+test('the bundled loop examples emit dountil + a copied condition + a nested body', () => {
+  const project = parseProject(examples);
+  const files = generateProject(project, examples);
+  // single-leaf loop
+  assert.ok(files['src/mastra/workflows/refine-loop.ts']);
+  assert.ok(files['src/mastra/workflows/steps/refine.ts'], 'body step copied');
+  assert.ok(files['src/mastra/workflows/condition/good-enough.ts'], 'condition copied');
+  assert.match(files['src/mastra/workflows/refine-loop.ts'], /import \{ goodEnough \} from '\.\/condition\/good-enough';/);
+  assert.match(files['src/mastra/workflows/refine-loop.ts'], /\.dountil\(refine, async \(args\) => \(await goodEnough\(args\)\) \|\| args\.iterationCount >= 5\)/);
+  // multi-step loop -> inline nested workflow
+  assert.ok(files['src/mastra/workflows/draft-loop.ts']);
+  assert.ok(files['src/mastra/workflows/steps/score.ts'], 'second body step copied');
+  assert.match(files['src/mastra/workflows/draft-loop.ts'], /createWorkflow\(\{ id: "draft-loop-loop-1"/);
+  assert.match(files['src/mastra/workflows/draft-loop.ts'], /\.then\(refine\)/);
+  assert.match(files['src/mastra/workflows/draft-loop.ts'], /\.then\(score\)/);
 });

@@ -4,7 +4,7 @@ title: "workflow/<id>.yaml"
 
 # workflow/&lt;id&gt;.yaml
 
-One file per workflow — a declarative graph of `agent`/`tool`/`step` steps that run **sequentially** (`.then`) and/or in **parallel** (`.parallel`). The id is the filename (`workflow/research-flow.yaml` → id `research-flow`, export `researchFlow`). Also list the id in [config.yaml](./config.md) `workflows:`.
+One file per workflow — a declarative graph of `agent`/`tool`/`step` steps that run **sequentially** (`.then`), in **parallel** (`.parallel`), and/or in a **loop** (`.dountil`/`.dowhile`/`.foreach`). The id is the filename (`workflow/research-flow.yaml` → id `research-flow`, export `researchFlow`). Also list the id in [config.yaml](./config.md) `workflows:`.
 
 ```yaml
 description: Research a question, then have the support agent answer from the notes.
@@ -56,6 +56,7 @@ A step is **exactly one** of:
 | `tool: <id>` | `.then(createStep(toolExport))` | Uses the tool's own `inputSchema`/`outputSchema`. |
 | `step: <id>` | `.then(stepExport)` | A custom [step/&lt;id&gt;.ts](./step.md) — used **directly** (already a `Step`, so **not** wrapped in `createStep`). Prefer over a glue `tool:` when you want the reshaping's `execute` **type-checked**. |
 | `parallel: [ … ]` | `.parallel([createStep(a), b])` | ≥2 **distinct** children (`agent`/`tool`/`step`); all run on the **same** input. After a `parallel`, the next step's input is **one object keyed by each child step's id**. Listing the same id twice is a parse error (the keys would collide). |
+| `loop: { … }` | `.dountil` / `.dowhile` / `.foreach` | Repeat a body. See [Loops](#loops) below. Top-level only — a `loop` can't be a `parallel` child. |
 
 Steps run in declaration order; each step's output is the next step's input. The chain is finalized with `.commit()`.
 
@@ -127,6 +128,95 @@ export const compareAnswers = createWorkflow({
   .commit();
 ```
 
+## Loops
+
+A `loop:` step repeats a **body** under a **driver**. The body is **either** a single leaf
+(`agent`/`tool`/`step`) **or** a `steps:` sequence (emitted as an inline nested workflow). The driver
+picks the Mastra method:
+
+| Driver | Method | Repeats… | Needs |
+|---|---|---|---|
+| `until: <id>` | `.dountil(body, cond)` | **until** the predicate returns `true` | [condition/&lt;id&gt;.ts](./condition.md) |
+| `while: <id>` | `.dowhile(body, cond)` | **while** the predicate returns `true` | [condition/&lt;id&gt;.ts](./condition.md) |
+| `foreach: true` | `.foreach(body, opts?)` | once **per element** of the previous step's array output | — |
+| `max_iterations:` alone | `.dountil(body, …count)` | a fixed number of times | — |
+
+Sub-keys:
+
+| Key | Applies to | Meaning |
+|---|---|---|
+| `until` / `while` / `foreach` | — | the driver (at most one) |
+| `agent` / `tool` / `step` | single-leaf body | the one step to repeat |
+| `steps` + `input` + `output` | multi-step body | a sequence to repeat; `input`/`output` type the nested workflow (**required** for multi-step) |
+| `max_iterations` | `until`/`while`/alone | iteration cap — folded into the condition (dountil → `|| iterationCount >= N`, dowhile → `&& iterationCount < N`); **not** valid with `foreach` |
+| `concurrency` | `foreach` | parallelism → `.foreach(body, { concurrency: N })` |
+
+### Worked example — single-leaf loop
+
+```yaml title="workflow/refine-loop.yaml"
+input:  { text: string, score: number }
+output: { text: string, score: number }
+steps:
+  - loop:
+      until: good-enough     # condition/good-enough.ts
+      step: refine           # step/refine.ts
+      max_iterations: 5
+```
+
+```typescript title="src/mastra/workflows/refine-loop.ts (generated)"
+import { createWorkflow, createStep } from '@mastra/core/workflows';
+import { z } from 'zod';
+import { refine } from './steps/refine';
+import { goodEnough } from './condition/good-enough';
+
+export const refineLoop = createWorkflow({
+  id: 'refine-loop',
+  inputSchema: z.object({ text: z.string(), score: z.number() }),
+  outputSchema: z.object({ text: z.string(), score: z.number() }),
+})
+  .dountil(refine, async (args) => (await goodEnough(args)) || args.iterationCount >= 5)
+  .commit();
+```
+
+### Worked example — multi-step body (nested workflow)
+
+A `steps:` body is emitted as an **inline nested workflow** (a Mastra `Workflow` is itself a `Step`,
+so it can be the loop body). It needs `input:`/`output:` to type the nested workflow's schemas.
+
+```yaml title="workflow/draft-loop.yaml"
+input:  { text: string, score: number }
+output: { text: string, score: number }
+steps:
+  - loop:
+      until: good-enough
+      input:  { text: string, score: number }
+      output: { text: string, score: number }
+      steps:
+        - step: refine
+        - step: score
+      max_iterations: 4
+```
+
+```typescript title="src/mastra/workflows/draft-loop.ts (generated)"
+  .dountil(
+    createWorkflow({ id: 'draft-loop-loop-1', inputSchema: …, outputSchema: … })
+      .then(refine)
+      .then(score)
+      .commit(),
+    async (args) => (await goodEnough(args)) || args.iterationCount >= 4,
+  )
+```
+
+### Loop notes
+
+- **Body = one step.** Mastra's loop methods take a single `Step`; a multi-step body becomes one
+  nested workflow. Body sub-steps are sequential leaves only (no `parallel`/`loop` nested in a body).
+- **`foreach` requires the previous step to output an array.** This is enforced at the generated
+  project's strict `tsc` (Mastra types the body arg as the literal string `'Previous step must
+  return an array type'` otherwise), not at parse time.
+- A `condition/<id>.ts` predicate's `inputData` is the **body's output** — type it to match, or the
+  generated project's `tsc` fails. See [condition/&lt;id&gt;.ts](./condition.md).
+
 ## Registration — `config.yaml`
 
 List each workflow id under `workflows:` in [config.yaml](./config.md). Each is registered on the `new Mastra({ … })` instance, keyed by its camelCase export name:
@@ -188,4 +278,4 @@ The generated project is fully strict (`strict: true`, incl. `strictFunctionType
 
 ## Not in this version
 
-Control flow beyond sequential `.then` + `.parallel` is deferred: `branch`/conditions, `loop`/`foreach`, a custom `schema/` escape hatch, and human-in-the-loop (suspend/resume). See the **Deferred** section of the workflows design spec (`.planning/superpowers/specs/2026-06-14-workflows-design.md`) for the full list and engine notes.
+Control flow beyond sequential `.then`, `.parallel`, and `loop` (`.dountil`/`.dowhile`/`.foreach`) is deferred: `branch`/`when_step:` conditions, `parallel`/nested loops **inside** a loop body, a custom `schema/` escape hatch, and human-in-the-loop (suspend/resume). Gen-time chain/condition shape checking also stays deferred — shape mismatches surface at the generated project's strict `tsc`. See the **Deferred** section of the workflows design spec (`.planning/superpowers/specs/2026-06-14-workflows-design.md`) for the full list and engine notes.

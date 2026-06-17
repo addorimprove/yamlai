@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-14 (rescoped 2026-06-17)
 **Feature:** Workflows for the YAML Agent Builder (roadmap #15)
-**Status:** implemented (v1) — sequential + parallel + agent attachment + custom `step/` resource; fuller control flow (loops/`foreach`/`branch`/conditions) still deferred (see end)
+**Status:** implemented (v1) — sequential + parallel + agent attachment + custom `step/` resource + loops (`.dountil`/`.dowhile`/`.foreach`) with the `condition/` resource; `branch`/`when_step:` conditions and human-in-the-loop still deferred (see end)
 
 ---
 
@@ -13,7 +13,8 @@
 - Step kinds: **`agent: <id>`**, **`tool: <id>`**, and **`step: <id>`** (a custom author-as-code
   `step/<id>.ts`, copied verbatim like tools and used directly in the chain — see "Custom `step/`
   resource" below).
-- Composition: **sequential** (`.then`) and **parallel** (`.parallel`) only.
+- Composition: **sequential** (`.then`), **parallel** (`.parallel`), and **loops** (`loop:` →
+  `.dountil`/`.dowhile`/`.foreach`) — see "Loops + the `condition/` resource" below.
 - Workflow `input`/`output` via YAML→Zod (primitives).
 - Workflows registered on the Mastra instance via `config.yaml → workflows: [<id>]`.
 - **Agent attachment** via `agent.workflows: [<id>]` → `new Agent({ workflows })`. **Cycles are
@@ -23,8 +24,8 @@
   avoid an agent⇄workflow static import cycle. Acyclic attachments use a plain static import + object.
 
 **Deferred** (all researched + engine-verified — see "Deferred" at the end): `schema/` escape
-hatch, `branch` / `loop` / `foreach`, conditions (`when:`/`when_step:`), and human-in-the-loop
-(suspend/resume).
+hatch, `branch` / `when_step:` conditions, `parallel`/nested loops inside a loop body, gen-time
+chain/condition shape checking, and human-in-the-loop (suspend/resume).
 
 > **Why this is expressive:** **tools and steps are the glue.** A tool/step has arbitrary in/out
 > schemas, so it does the `{text}→{prompt}` reshaping between agents and the merge after a parallel
@@ -296,13 +297,16 @@ Kept here as the roadmap for the next increments (all checked against @mastra/co
   `execute` input is typed from `inputSchema` — a typed alternative to glue tools. See
   `plans/2026-06-17-workflow-steps.md` and `website/docs/reference/step.md`.
 - **`schema/` escape hatch** — `.ts` Zod schema for IO too complex for YAML→Zod.
-- **Loops + condition resource** — a `loop:` step kind emitting `.dountil`/`.dowhile`/`.foreach`,
-  backed by a `workflow/condition/<id>.ts` predicate file (copied verbatim like `tools/`):
-  `until:`→`.dountil`, `while:`→`.dowhile`, `foreach: true`→`.foreach`, optional `max_iterations`
-  guard. **Engine note for when this lands:** `LoopConditionFunction` is typed `=> Promise<boolean>`
-  (`workflows/step.d.ts:56`), so a bare condition must be `async` (or the emitter must wrap it);
-  `foreach`'s "previous step outputs an array" precondition is enforced at the generated project's
-  `tsc` (`workflows/workflow.d.ts:213`), not at parse time.
+- ~~**Loops + condition resource**~~ — **SHIPPED** (2026-06-17). A `loop:` step kind emitting
+  `.dountil`/`.dowhile`/`.foreach`, backed by a root **`condition/<id>.ts`** predicate file (copied
+  verbatim → `src/mastra/workflows/condition/`): `until:`→`.dountil`, `while:`→`.dowhile`,
+  `foreach: true`→`.foreach`, `max_iterations` folded into the condition (or, alone, a pure-count
+  loop), `concurrency` for foreach. Body is a single leaf **or** a multi-step `steps:` sequence
+  (with `input:`/`output:`) emitted as an inline nested workflow (`Workflow implements Step`).
+  `LoopConditionFunction` is `=> Promise<boolean>` so condition files are `async`; `foreach`'s
+  array precondition is enforced at the generated project's `tsc`, not at parse time. See
+  `plans/2026-06-17-workflow-loops.md`, `website/docs/reference/condition.md`, and
+  `[[workflow-gentime-checking-deferred]]`.
 - **`branch`** → `.branch([[cond, step], …])`. **Engine-verified:** runs **all** truthy arms
   concurrently (not "first match" as the prose docs say — `chunk-TRXIXO5J.js:4327`). An `else`
   would compile to the negation of all siblings. (A `workflow/condition/<id>.ts` resource would be the

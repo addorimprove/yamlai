@@ -18,6 +18,7 @@ const sidebars: SidebarsConfig = {
         'reference/memory',
         'reference/workflow',
         'reference/step',
+        'reference/condition',
       ],
     },
     'cli',
