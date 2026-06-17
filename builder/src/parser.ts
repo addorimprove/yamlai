@@ -127,6 +127,23 @@ export function parseProject(rootDir: string): ParsedProject {
   }
   const config = configResult.data;
 
+  // A repeated id in config.agents/config.workflows would emit duplicate imports
+  // and a duplicate object key in the generated index.ts — a `tsc` failure in the
+  // generated project rather than a clear error here. Reject it up front.
+  const reportDuplicates = (field: string, ids: string[]): void => {
+    const seen = new Set<string>();
+    const dupes = new Set<string>();
+    for (const id of ids) {
+      if (seen.has(id)) dupes.add(id);
+      seen.add(id);
+    }
+    for (const id of [...dupes].sort()) {
+      addIssue('config.yaml', `duplicate ${field}: \`${id}\` is listed more than once`);
+    }
+  };
+  reportDuplicates('agent', config.agents);
+  reportDuplicates('workflow', config.workflows);
+
   // 2-5. Resolve each agent (continue past errors to collect them all).
   const agents: ResolvedAgent[] = [];
 

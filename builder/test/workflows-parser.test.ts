@@ -299,3 +299,29 @@ test('errors when a loop is used as a parallel child', () => {
   // `loop` is not a valid key on a parallel child (WorkflowLeafSchema.strict() catches it first).
   assert.throws(() => parseProject(dir), /loop/);
 });
+
+test('rejects a duplicate workflow id in config.workflows', () => {
+  // A repeated id would emit duplicate imports + a duplicate object key in the
+  // generated index.ts (a `tsc` failure in the generated project) — catch it here.
+  const dir = makeProject({
+    'config.yaml':
+      'name: x\nagents: [research-agent, support-agent]\nworkflows: [research-flow, research-flow]\n',
+    'agent/research-agent.yaml': 'name: R\ninstructions: p\nmodel: m\n',
+    'agent/support-agent.yaml': 'name: S\ninstructions: p\nmodel: m\n',
+    'prompt/p.md': PROMPT,
+    'model/m.yaml': MODEL,
+    'workflow/research-flow.yaml':
+      'input: { prompt: string }\noutput: { text: string }\nsteps:\n  - agent: research-agent\n',
+  });
+  assert.throws(() => parseProject(dir), /duplicate workflow: `research-flow`/);
+});
+
+test('rejects a duplicate agent id in config.agents', () => {
+  const dir = makeProject({
+    'config.yaml': 'name: x\nagents: [research-agent, research-agent]\n',
+    'agent/research-agent.yaml': 'name: R\ninstructions: p\nmodel: m\n',
+    'prompt/p.md': PROMPT,
+    'model/m.yaml': MODEL,
+  });
+  assert.throws(() => parseProject(dir), /duplicate agent: `research-agent`/);
+});
