@@ -10,6 +10,7 @@ import { toExportName } from './naming.js';
 import type {
   ParsedProject,
   ResolvedAgent,
+  ResolvedLoopBody,
   ResolvedMemory,
   ResolvedModel,
   ResolvedStepRef,
@@ -257,6 +258,7 @@ export function parseProject(rootDir: string): ParsedProject {
     const agentRefs: ResolvedWorkflowRef[] = [];
     const toolRefs: ResolvedTool[] = [];
     const stepFileRefs: ResolvedTool[] = [];
+    const conditionFileRefs: ResolvedTool[] = [];
     let ok = true;
 
     // Resolve one leaf (agent | tool | step), recording refs for imports. Returns
@@ -316,8 +318,15 @@ export function parseProject(rootDir: string): ParsedProject {
       const hasAgent = typeof step.agent === 'string';
       const hasTool = typeof step.tool === 'string';
       const hasStep = typeof step.step === 'string';
-      if ((hasParallel ? 1 : 0) + (hasAgent ? 1 : 0) + (hasTool ? 1 : 0) + (hasStep ? 1 : 0) !== 1) {
-        addIssue(wfPath, `step ${i + 1} must have exactly one of \`agent:\`, \`tool:\`, \`step:\`, or \`parallel:\``);
+      const hasLoop = step.loop !== undefined && step.loop !== null;
+      if (
+        (hasParallel ? 1 : 0) + (hasAgent ? 1 : 0) + (hasTool ? 1 : 0) + (hasStep ? 1 : 0) + (hasLoop ? 1 : 0) !==
+        1
+      ) {
+        addIssue(
+          wfPath,
+          `step ${i + 1} must have exactly one of \`agent:\`, \`tool:\`, \`step:\`, \`parallel:\`, or \`loop:\``,
+        );
         ok = false;
         continue;
       }
@@ -350,6 +359,132 @@ export function parseProject(rootDir: string): ParsedProject {
         if (resolvedKids.length === kids.length && dupes.size === 0) {
           resolvedSteps.push({ kind: 'parallel', children: resolvedKids });
         }
+      } else if (hasLoop) {
+        const lp = step.loop as {
+          until?: string;
+          while?: string;
+          foreach?: boolean;
+          agent?: string;
+          tool?: string;
+          step?: string;
+          steps?: { agent?: string; tool?: string; step?: string }[];
+          input?: Record<string, unknown>;
+          output?: Record<string, unknown>;
+          max_iterations?: number;
+          concurrency?: number;
+        };
+
+        // --- driver ---
+        const drivers = [
+          lp.until !== undefined ? 'until' : null,
+          lp.while !== undefined ? 'while' : null,
+          lp.foreach !== undefined ? 'foreach' : null,
+        ].filter(Boolean);
+        if (drivers.length > 1) {
+          addIssue(wfPath, `step ${i + 1}: loop has more than one of \`until:\`, \`while:\`, \`foreach:\``);
+          ok = false;
+          continue;
+        }
+        if (drivers.length === 0 && lp.max_iterations === undefined) {
+          addIssue(
+            wfPath,
+            `step ${i + 1}: loop needs one of \`until:\`, \`while:\`, \`foreach:\`, or \`max_iterations:\``,
+          );
+          ok = false;
+          continue;
+        }
+        if (lp.foreach !== undefined && lp.foreach !== true) {
+          addIssue(wfPath, `step ${i + 1}: \`foreach\` must be \`true\``);
+          ok = false;
+          continue;
+        }
+        if (lp.foreach && lp.max_iterations !== undefined) {
+          addIssue(wfPath, `step ${i + 1}: \`max_iterations\` is not valid with \`foreach:\``);
+          ok = false;
+          continue;
+        }
+        if (lp.concurrency !== undefined && !lp.foreach) {
+          addIssue(wfPath, `step ${i + 1}: \`concurrency\` is only valid with \`foreach:\``);
+          ok = false;
+          continue;
+        }
+
+        // --- body (exactly one of: single leaf | steps sequence) ---
+        const hasLeafBody = lp.agent !== undefined || lp.tool !== undefined || lp.step !== undefined;
+        const hasSeqBody = Array.isArray(lp.steps) && lp.steps.length > 0;
+        if (hasLeafBody === hasSeqBody) {
+          addIssue(
+            wfPath,
+            `step ${i + 1}: loop must have exactly one body — a single \`agent:\`/\`tool:\`/\`step:\` or a \`steps:\` list`,
+          );
+          ok = false;
+          continue;
+        }
+
+        let body: ResolvedLoopBody | undefined;
+        if (hasLeafBody) {
+          if (lp.input !== undefined || lp.output !== undefined) {
+            addIssue(wfPath, `step ${i + 1}: \`input:\`/\`output:\` are only for a multi-step \`steps:\` body`);
+            ok = false;
+            continue;
+          }
+          const ref = resolveLeaf({ agent: lp.agent, tool: lp.tool, step: lp.step }, `step ${i + 1} loop body`);
+          if (!ref) {
+            ok = false;
+            continue;
+          }
+          body = { kind: 'leaf', ref };
+        } else {
+          if (lp.input === undefined || lp.output === undefined) {
+            addIssue(wfPath, `step ${i + 1}: a multi-step loop body requires \`input:\` and \`output:\``);
+            ok = false;
+            continue;
+          }
+          const inC = compileZodObject(lp.input);
+          const outC = compileZodObject(lp.output);
+          for (const e of inC.errors) addIssue(wfPath, `step ${i + 1} loop input.${e}`);
+          for (const e of outC.errors) addIssue(wfPath, `step ${i + 1} loop output.${e}`);
+          const refs: ResolvedStepRef[] = [];
+          let bodyOk = true;
+          for (const [j, kid] of lp.steps!.entries()) {
+            const r = resolveLeaf(kid, `step ${i + 1} loop body step ${j + 1}`);
+            if (!r) bodyOk = false;
+            else refs.push(r);
+          }
+          if (!bodyOk || inC.errors.length || outC.errors.length) {
+            ok = false;
+            continue;
+          }
+          body = { kind: 'sequence', id: `${wfId}-loop-${i + 1}`, inputZod: inC.expr, outputZod: outC.expr, steps: refs };
+        }
+
+        // --- condition (until/while only) ---
+        let condition: ResolvedTool | undefined;
+        if (lp.until !== undefined || lp.while !== undefined) {
+          const condId = (lp.until ?? lp.while) as string;
+          const condPath = `condition/${condId}.ts`;
+          if (!existsSync(join(rootDir, condPath))) {
+            addIssue(wfPath, `condition not found: ${condPath}`);
+            ok = false;
+            continue;
+          }
+          const exportName = toExportName(condId);
+          if (!conditionFileRefs.some((c) => c.id === condId)) {
+            conditionFileRefs.push({ id: condId, filePath: condPath, exportName });
+          }
+          condition = { id: condId, filePath: condPath, exportName };
+        }
+
+        const loopKind: 'dountil' | 'dowhile' | 'foreach' = lp.foreach
+          ? 'foreach'
+          : lp.while !== undefined
+            ? 'dowhile'
+            : 'dountil';
+
+        resolvedSteps.push({
+          kind: 'loop',
+          loop: { loopKind, body, condition, maxIterations: lp.max_iterations, concurrency: lp.concurrency },
+        });
       } else {
         const ref = resolveLeaf(step, `step ${i + 1}`);
         if (!ref) ok = false;
@@ -374,6 +509,7 @@ export function parseProject(rootDir: string): ParsedProject {
       agents: agentRefs,
       tools: toolRefs,
       stepFiles: stepFileRefs,
+      conditionFiles: conditionFileRefs,
     });
   }
 
@@ -474,6 +610,7 @@ export function parseProject(rootDir: string): ParsedProject {
       ...wf.agents.map((a) => ({ name: a.exportName, key: `agent:${a.id}` })),
       ...wf.tools.map((t) => ({ name: t.exportName, key: `tool:${t.id}` })),
       ...wf.stepFiles.map((s) => ({ name: s.exportName, key: `step:${s.id}` })),
+      ...wf.conditionFiles.map((c) => ({ name: c.exportName, key: `condition:${c.id}` })),
     ]);
   }
 
