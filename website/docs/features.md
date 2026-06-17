@@ -16,10 +16,8 @@ logger: { level: info }      # logger
 storage:                     # storage (libsql)
   type: libsql
   url: file:./mastra.db
-memory:                      # agent memory (history, working memory, semantic recall)
+memory:                      # agent memory (history + working memory)
   last_messages: 20
-  semantic_recall:
-    embedder: openai/text-embedding-3-small
   working_memory:
     template: "# Writing Preferences\n- Tone:\n- Audience:"
 ```

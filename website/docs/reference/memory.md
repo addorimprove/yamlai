@@ -53,7 +53,7 @@ export const memory = new Memory({
 });
 ```
 
-Keys map snake_case → camelCase (`last_messages` → `lastMessages`, `semantic_recall` → `semanticRecall`, `top_k` → `topK`); a `working_memory` block sets `enabled: true`; `message_range` also accepts a plain number (symmetric before/after). Memory reuses `storage.url` for both the store and the recall vector, so a `storage` block is **required**; `semantic_recall` requires `embedder` and emits the `LibSQLVector`.
+Keys map snake_case → camelCase (`last_messages` → `lastMessages`, `semantic_recall` → `semanticRecall`, `top_k` → `topK`); a `working_memory` block sets `enabled: true`; `message_range` also accepts a plain number (symmetric before/after). Memory reuses `storage.url` for both the store and the recall vector, so a `storage` block is **required**; `semantic_recall` requires `embedder` and emits the `LibSQLVector`. The embedder is constructed when the `Memory` is created, so enabling `semantic_recall` means `mastra dev` needs the provider's API key (e.g. `OPENAI_API_KEY`) to boot. The default `yamlai init` scaffold omits `semantic_recall` so the dev server starts without any key.
 
 ## Notes
 

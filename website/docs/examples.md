@@ -47,11 +47,6 @@ storage:
   url: file:./mastra.db
 memory:
   last_messages: 20
-  semantic_recall:
-    embedder: openai/text-embedding-3-small
-    top_k: 3
-    message_range: { before: 2, after: 1 }
-    scope: resource
   working_memory:
     scope: resource
     template: |
@@ -218,15 +213,12 @@ runtime and avoids the self-referential type-inference error. See
 
 ```typescript title="src/mastra/utils/memory.ts"
 import { Memory } from '@mastra/memory';
-import { LibSQLStore, LibSQLVector } from '@mastra/libsql';
+import { LibSQLStore } from '@mastra/libsql';
 
 export const memory = new Memory({
   storage: new LibSQLStore({ id: 'memory-storage', url: "file:./mastra.db" }),
-  vector: new LibSQLVector({ id: 'memory-vector', url: "file:./mastra.db" }),
-  embedder: "openai/text-embedding-3-small",
   options: {
     lastMessages: 20,
-    semanticRecall: { topK: 3, messageRange: { before: 2, after: 1 }, scope: "resource" },
     workingMemory: { enabled: true, scope: "resource", template: `# Writing Preferences
 - Tone:
 - Audience:` },

@@ -113,8 +113,6 @@ storage:
   url: file:./mastra.db
 memory:
   last_messages: 20
-  semantic_recall:
-    embedder: openai/text-embedding-3-small
   working_memory:
     template: "# Writing Preferences\n- Tone:\n- Audience:"
 ```
