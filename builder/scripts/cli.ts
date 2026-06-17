@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { resolve } from 'node:path';
 import { runGenerate } from './generate.js';
+import { runInit } from './init.js';
 import { runValidate } from './validate.js';
 
 // Subcommand dispatcher. `validate`/`generate` are explicit; a bare first arg
@@ -20,6 +21,16 @@ if (first === 'validate') {
   if (result.stdout) process.stdout.write(result.stdout + '\n');
   if (result.stderr) process.stderr.write(result.stderr + '\n');
   process.exit(result.code);
+}
+
+if (first === 'init') {
+  try {
+    runInit(rest);
+    process.exit(0);
+  } catch (err) {
+    process.stderr.write((err instanceof Error ? err.message : String(err)) + '\n');
+    process.exit(1);
+  }
 }
 
 // Explicit `generate` subcommand strips the keyword; otherwise pass argv through.
