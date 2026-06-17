@@ -50,3 +50,8 @@ test('MemorySchema rejects an unknown key (strict through preprocess)', () => {
   const r = MemorySchema.safeParse({ last_messages: 5, last_mesages: 9 });
   assert.ok(unknownKeyIssue(r));
 });
+
+test('MemorySchema rejects an unknown key inside semantic_recall (nested strict)', () => {
+  const r = MemorySchema.safeParse({ semantic_recall: { embedder: 'e', tpo_k: 5 } });
+  assert.ok(unknownKeyIssue(r));
+});
