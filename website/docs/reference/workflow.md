@@ -7,7 +7,6 @@ title: "workflow/<id>.yaml"
 One file per workflow — a declarative graph of `agent`/`tool` steps that run **sequentially** (`.then`) and/or in **parallel** (`.parallel`). The id is the filename (`workflow/research-flow.yaml` → id `research-flow`, export `researchFlow`). Also list the id in [config.yaml](./config.md) `workflows:`.
 
 ```yaml
-name: Research Flow
 description: Research a question, then have the support agent answer from the notes.
 
 input:  { prompt: string }     # → z.object({ prompt: z.string() })
@@ -23,11 +22,12 @@ steps:
 
 | Field | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `name` | string | Yes | — | Human-readable name. |
-| `description` | string | No | `''` | Short description. |
+| `description` | string | No | `''` | Emitted onto the workflow (`createWorkflow({ description })`) when non-empty. |
 | `input` | field map | No | `z.object({})` | Workflow input → Zod. Must match the **first step's** input shape. |
 | `output` | field map | No | `z.object({})` | Workflow output → Zod. **Not** enforced against the last step (see Gotchas). |
 | `steps` | step[] | Yes | — | The graph, in order (≥1). Each is `agent` / `tool` / `parallel`. |
+
+Mastra workflows are identified by `id` (the filename) — there is no `name` field. A `name:` left in the YAML is ignored.
 
 `agent:`/`tool:` reference the project's existing [agent/&lt;id&gt;.yaml](./agent.md) / [tools/&lt;id&gt;.ts](./tools.md) — each must resolve to an existing file (and `agent:` ids must be in [config.yaml](./config.md) `agents:`) or codegen fails.
 
@@ -54,7 +54,7 @@ A step is **exactly one** of:
 |---|---|---|
 | `agent: <id>` | `.then(createStep(agentExport))` | Reads `{ prompt }`, writes `{ text }`. |
 | `tool: <id>` | `.then(createStep(toolExport))` | Uses the tool's own `inputSchema`/`outputSchema`. |
-| `parallel: [ … ]` | `.parallel([createStep(a), createStep(b)])` | ≥2 children (`agent`/`tool`); all run on the **same** input. After a `parallel`, the next step's input is **one object keyed by each child step's id**. |
+| `parallel: [ … ]` | `.parallel([createStep(a), createStep(b)])` | ≥2 **distinct** children (`agent`/`tool`); all run on the **same** input. After a `parallel`, the next step's input is **one object keyed by each child step's id**. Listing the same agent/tool twice is a parse error (the keys would collide). |
 
 Steps run in declaration order; each step's output is the next step's input. The chain is finalized with `.commit()`.
 
@@ -63,7 +63,6 @@ Steps run in declaration order; each step's output is the next step's input. The
 `input { prompt }` → `agent: research-agent` → `tool: rephrase` (glue, `{ text }`→`{ prompt }`) → `agent: support-agent` → `output { text }`.
 
 ```yaml title="workflow/research-flow.yaml"
-name: Research Flow
 input:  { prompt: string }
 output: { text: string }
 steps:
@@ -83,6 +82,7 @@ import { rephrase } from '../tools/rephrase';
 
 export const researchFlow = createWorkflow({
   id: 'research-flow',
+  description: 'Research a question, then have the support agent answer from the notes.',
   inputSchema: z.object({ prompt: z.string() }),
   outputSchema: z.object({ text: z.string() }),
 })
@@ -94,10 +94,9 @@ export const researchFlow = createWorkflow({
 
 ## Worked example — parallel
 
-`input { prompt }` → `parallel: [agent: research-agent, agent: support-agent]` → `tool: merge-answers` → `output { comparison }`. Because the merge tool runs after `.parallel([...])`, its `inputSchema` mirrors the keyed-by-step-id shape (`{ 'research-agent': {text}, 'support-agent': {text} }`).
+`input { prompt }` → `parallel: [agent: research-agent, agent: support-agent]` → `tool: merge-answers` → `output { comparison }`. Because the merge tool runs after `.parallel([...])`, its input is the keyed-by-step-id result. Mastra types that result as a **record** (index signature) keyed by string with the common child-output shape, so the merge tool's `inputSchema` must be `z.record(z.string(), z.object({ text: z.string() }))` — an exact-keys `z.object({ 'research-agent': …, 'support-agent': … })` fails to typecheck under the generated project's strict `tsc`. (This also means all parallel children should share one output shape.)
 
 ```yaml title="workflow/compare-answers.yaml"
-name: Compare Answers
 input:  { prompt: string }
 output: { comparison: string }
 steps:
@@ -118,6 +117,7 @@ import { mergeAnswers } from '../tools/merge-answers';
 
 export const compareAnswers = createWorkflow({
   id: 'compare-answers',
+  description: 'Ask the research and support agents the same question in parallel, then merge.',
   inputSchema: z.object({ prompt: z.string() }),
   outputSchema: z.object({ comparison: z.string() }),
 })
@@ -175,13 +175,15 @@ This is the same lazy-thunk strategy used for cyclic [sub-agents](./agent.md#sub
 
 ## Gotchas
 
-These surface when **`tsc` runs on the generated project**, not at YAML parse time — the error appears in the generated `.ts`, not in your YAML.
+The generated project is fully strict (`strict: true`, incl. `strictFunctionTypes`) on `@mastra/core` ≥1.43, so **adjacent step IO is type-checked at `tsc` time** — most shape problems below fail the build, not just the run.
 
-1. **Step shapes must chain.** Each step's output feeds the next step's input; the builder does **not** reshape between steps — insert a glue `tool:` (like `rephrase`) to adapt shapes. Only *adjacent* steps are type-checked against each other. The workflow's declared `output:` is **not** enforced against the last step's actual output, so a wrong `output:` block compiles silently — keep it in sync by hand.
+1. **Step shapes must chain.** Each step's output feeds the next step's input; the builder does **not** reshape between steps — insert a glue `tool:`/`step:` (like `rephrase`) to adapt shapes. A mismatch **fails `tsc`** on the generated project (e.g. a step that emits `{ text }` followed by one that needs `{ count }`). The workflow's declared `output:` is the one thing **not** enforced against the last step's actual output — a wrong `output:` block compiles and returns the actual shape, so keep `output:` in sync by hand.
 
-2. **`input:` must match the first step.** If the first step is an `agent:`, it reads `{ prompt: string }`, so the workflow `input:` must provide `{ prompt: string }`. Omitting `input:` yields `z.object({})` and the generated project fails to compile.
+2. **`input:` must match the first step.** If the first step is an `agent:`, it reads `{ prompt: string }`, so the workflow `input:` must provide `{ prompt: string }`. Omitting `input:` yields `z.object({})` and the generated project **fails to compile**.
 
-3. **Agent steps and `strictFunctionTypes`.** The generated `tsconfig.json` sets `strictFunctionTypes: false` (while keeping `strict: true`). This is **required**: Mastra's `createStep(agent)` produces a step whose `execute` reads a concrete `{ prompt }` input, which `strictFunctionTypes` would reject contravariantly in every `.then()` chain. Real step-to-step IO mismatches are still caught — they surface on the step `inputSchema`/`outputSchema`.
+3. **After a `parallel`, the next step takes a record.** `.parallel([...])` produces a result keyed by each child's step id, typed as `z.record(z.string(), <commonChildOutput>)`. The consuming `tool:`/`step:` must declare that record shape (not exact keys), and all parallel children should share one output shape — see the parallel worked example.
+
+4. **Tool `execute` signature.** A `tool:` step uses the tool's `execute` as-is. In this Mastra version a tool receives its input as the **first positional argument** — `execute: async (inputData) => ({ ... })`. A tool written the older way (`execute: async ({ context }) => …`) compiles but `context` is `undefined` at run time. Match the example tools (`tools/rephrase.ts`, `tools/merge-answers.ts`).
 
 ## Not in this version
 

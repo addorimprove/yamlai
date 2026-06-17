@@ -86,7 +86,8 @@ const WorkflowStepSchema = z.object({
 });
 
 export const WorkflowSchema = z.object({
-  name: z.string().min(1),
+  // No `name`: Mastra workflows are identified by `id` (the filename) and only
+  // carry an optional `description`. A `name:` left in the YAML is ignored.
   description: z.string().default(''),
   input: z.record(z.string(), z.unknown()).default({}),
   output: z.record(z.string(), z.unknown()).default({}),

@@ -68,7 +68,6 @@ export interface ResolvedWorkflowStep {
 
 export interface ResolvedWorkflow {
   id: string;
-  name: string;
   description: string;
   /** camelCase export variable name, e.g. "researchFlow". */
   exportName: string;

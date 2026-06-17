@@ -6,7 +6,6 @@ import type { ResolvedWorkflow } from '../src/types.js';
 
 const SEQ: ResolvedWorkflow = {
   id: 'research-flow',
-  name: 'Research Flow',
   description: '',
   exportName: 'researchFlow',
   inputZod: 'z.object({ prompt: z.string() })',
@@ -56,4 +55,14 @@ test('emits a .parallel block for a parallel step', () => {
   });
   assert.match(out, /\.parallel\(\[createStep\(researchAgent\), createStep\(supportAgent\)\]\)/);
   assert.match(out, /\.then\(createStep\(mergeAnswers\)\)/);
+});
+
+test('emits description when present', () => {
+  const out = emitWorkflow({ ...SEQ, description: 'Research a question, then answer.' });
+  assert.match(out, /description: "Research a question, then answer\.",/);
+});
+
+test('omits description when empty', () => {
+  const out = emitWorkflow({ ...SEQ, description: '' });
+  assert.doesNotMatch(out, /description:/);
 });

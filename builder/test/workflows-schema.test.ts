@@ -10,7 +10,6 @@ test('ConfigSchema defaults workflows to an empty array', () => {
 
 test('WorkflowSchema accepts agent/tool/parallel steps and defaults description/io', () => {
   const wf = WorkflowSchema.parse({
-    name: 'Research Flow',
     input: { prompt: 'string' },
     output: { text: 'string' },
     steps: [
@@ -24,13 +23,14 @@ test('WorkflowSchema accepts agent/tool/parallel steps and defaults description/
   assert.equal(wf.steps.length, 3);
 });
 
-test('WorkflowSchema requires a name and at least one step', () => {
-  assert.equal(WorkflowSchema.safeParse({ name: 'x', steps: [] }).success, false);
-  assert.equal(WorkflowSchema.safeParse({ steps: [{ agent: 'a' }] }).success, false);
+test('WorkflowSchema requires at least one step but not a name', () => {
+  assert.equal(WorkflowSchema.safeParse({ steps: [] }).success, false);
+  // name is no longer part of the schema — a workflow without one parses fine.
+  assert.equal(WorkflowSchema.safeParse({ steps: [{ agent: 'a' }] }).success, true);
 });
 
 test('WorkflowSchema defaults input/output to empty objects', () => {
-  const wf = WorkflowSchema.parse({ name: 'x', steps: [{ agent: 'a' }] });
+  const wf = WorkflowSchema.parse({ steps: [{ agent: 'a' }] });
   assert.deepEqual(wf.input, {});
   assert.deepEqual(wf.output, {});
 });

@@ -16,6 +16,9 @@ export function emitWorkflow(wf: ResolvedWorkflow): string {
 
   lines.push(`export const ${wf.exportName} = createWorkflow({`);
   lines.push(`  id: ${JSON.stringify(wf.id)},`);
+  if (wf.description) {
+    lines.push(`  description: ${JSON.stringify(wf.description)},`);
+  }
   lines.push(`  inputSchema: ${wf.inputZod},`);
   lines.push(`  outputSchema: ${wf.outputZod},`);
   lines.push(`})`);

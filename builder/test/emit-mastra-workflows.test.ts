@@ -23,7 +23,7 @@ test('imports and registers workflows when present', () => {
   const out = emitIndex({
     ...BASE,
     workflows: [
-      { id: 'research-flow', name: 'R', description: '', exportName: 'researchFlow',
+      { id: 'research-flow', description: '', exportName: 'researchFlow',
         inputZod: 'z.object({})', outputZod: 'z.object({})', steps: [], agents: [], tools: [] },
     ],
   });

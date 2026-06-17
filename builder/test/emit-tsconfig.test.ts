@@ -3,10 +3,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { emitTsconfig } from '../src/codegen/emit-project-files.js';
 
-test('generated tsconfig keeps strict but disables strictFunctionTypes', () => {
+test('generated tsconfig is fully strict (strictFunctionTypes not disabled)', () => {
   const cfg = JSON.parse(emitTsconfig());
-  // strict stays on for everything except function-param contravariance, which
-  // would otherwise reject Mastra's `createStep(agent)` in every `.then()` chain.
+  // Full strict, including strictFunctionTypes. @mastra/core >=1.43 types
+  // `createStep(agent)`/`.then()` so agent-step chains compile under it, and
+  // step-to-step IO mismatches are caught at build time (not just at runtime).
   assert.equal(cfg.compilerOptions.strict, true);
-  assert.equal(cfg.compilerOptions.strictFunctionTypes, false);
+  assert.notEqual(cfg.compilerOptions.strictFunctionTypes, false);
 });

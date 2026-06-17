@@ -101,6 +101,17 @@ test('errors when a parallel block has fewer than 2 children', () => {
   assert.throws(() => parseProject(dir), /needs at least 2 steps/);
 });
 
+test('errors when a parallel block lists the same agent/tool twice', () => {
+  // Mastra keys parallel results by step id (the agent/tool id), so two children
+  // with the same id silently overwrite each other — reject it at parse time.
+  const dir = makeProject({
+    ...base('bad'),
+    'workflow/bad.yaml':
+      'steps:\n  - parallel:\n      - agent: research-agent\n      - agent: research-agent\n',
+  });
+  assert.throws(() => parseProject(dir), /duplicate step `research-agent`/);
+});
+
 test('errors on an unsupported input field type', () => {
   const dir = makeProject({
     ...base('bad'),

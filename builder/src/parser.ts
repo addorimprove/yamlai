@@ -316,7 +316,20 @@ export function parseProject(rootDir: string): ParsedProject {
           if (!c) ok = false;
           else resolvedKids.push(c);
         }
-        if (resolvedKids.length === kids.length) {
+        // Mastra keys parallel results by step id (the agent/tool id). Two children
+        // with the same id would silently overwrite each other (and both still run),
+        // so reject duplicates here rather than emit code that loses a result.
+        const dupes = new Set<string>();
+        const seenKids = new Set<string>();
+        for (const c of resolvedKids) {
+          if (seenKids.has(c.id)) dupes.add(c.id);
+          seenKids.add(c.id);
+        }
+        for (const id of dupes) {
+          addIssue(wfPath, `step ${i + 1}: \`parallel\` has duplicate step \`${id}\` — each parallel child must be a distinct agent/tool`);
+          ok = false;
+        }
+        if (resolvedKids.length === kids.length && dupes.size === 0) {
           resolvedSteps.push({ kind: 'parallel', children: resolvedKids });
         }
       } else {
@@ -335,7 +348,6 @@ export function parseProject(rootDir: string): ParsedProject {
 
     workflows.push({
       id: wfId,
-      name: wf.name,
       description: wf.description,
       exportName: toExportName(wfId),
       inputZod: inCompiled.expr,
