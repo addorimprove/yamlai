@@ -61,3 +61,17 @@ test('copies a shared tool exactly once', () => {
   assert.ok(files['src/mastra/tools/shared.ts']);
   // (No duplicate-key possibility in a FileMap; this asserts the dedupe path runs without error.)
 });
+
+test('copies a referenced step verbatim into workflows/steps/', () => {
+  const dir = makeProject({
+    'config.yaml': 'name: x\nagents: [a]\nworkflows: [w]\n',
+    'agent/a.yaml': 'name: A\ninstructions: p\nmodel: m\n',
+    'prompt/p.md': 'hi\n',
+    'model/m.yaml': 'provider: openai\nmodel: gpt-5-mini\n',
+    'step/rephrase.ts': "import { createStep } from '@mastra/core/workflows';\nexport const rephrase = {};\n",
+    'workflow/w.yaml': 'input: { prompt: string }\noutput: { text: string }\nsteps:\n  - agent: a\n  - step: rephrase\n',
+  });
+  const files = generateProject(parseProject(dir), dir);
+  assert.ok(files['src/mastra/workflows/steps/rephrase.ts'], 'step copied');
+  assert.match(files['src/mastra/workflows/w.ts'], /import \{ rephrase \} from '\.\/steps\/rephrase';/);
+});

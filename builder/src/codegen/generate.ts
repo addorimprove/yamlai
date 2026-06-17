@@ -45,6 +45,11 @@ export function generateProject(project: ParsedProject, rootDir: string): FileMa
       if (files[dest]) continue; // already copied by an agent or another workflow
       files[dest] = readFileSync(join(rootDir, tool.filePath), 'utf8');
     }
+    for (const s of wf.stepFiles) {
+      const dest = `src/mastra/workflows/steps/${s.id}.ts`;
+      if (files[dest]) continue; // copy each step once even if shared across workflows
+      files[dest] = readFileSync(join(rootDir, s.filePath), 'utf8');
+    }
   }
 
   return files;
