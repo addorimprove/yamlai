@@ -12,6 +12,11 @@ export function emitWorkflow(wf: ResolvedWorkflow): string {
   for (const t of wf.tools) {
     lines.push(`import { ${t.exportName} } from '../tools/${t.id}';`);
   }
+  // Custom steps live in a steps/ dir nested inside workflows/ and are imported
+  // relative to this file.
+  for (const s of wf.stepFiles) {
+    lines.push(`import { ${s.exportName} } from './steps/${s.id}';`);
+  }
   lines.push('');
 
   lines.push(`export const ${wf.exportName} = createWorkflow({`);
@@ -22,12 +27,17 @@ export function emitWorkflow(wf: ResolvedWorkflow): string {
   lines.push(`  inputSchema: ${wf.inputZod},`);
   lines.push(`  outputSchema: ${wf.outputZod},`);
   lines.push(`})`);
+  // A custom step is already a `Step`, so it's used directly; agents/tools are
+  // wrapped in createStep(...) to produce one.
+  const renderLeaf = (ref: { kind: string; exportName: string }) =>
+    ref.kind === 'step' ? ref.exportName : `createStep(${ref.exportName})`;
+
   for (const step of wf.steps) {
     if (step.kind === 'parallel') {
-      const inner = step.children!.map((c) => `createStep(${c.exportName})`).join(', ');
+      const inner = step.children!.map(renderLeaf).join(', ');
       lines.push(`  .parallel([${inner}])`);
     } else {
-      lines.push(`  .then(createStep(${step.ref!.exportName}))`);
+      lines.push(`  .then(${renderLeaf(step.ref!)})`);
     }
   }
   lines.push(`  .commit();`);

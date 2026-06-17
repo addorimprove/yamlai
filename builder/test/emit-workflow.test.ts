@@ -20,6 +20,7 @@ const SEQ: ResolvedWorkflow = {
     { id: 'support-agent', exportName: 'supportAgent' },
   ],
   tools: [{ id: 'rephrase', filePath: 'tools/rephrase.ts', exportName: 'rephrase' }],
+  stepFiles: [],
 };
 
 test('emits imports, createWorkflow, sequential .then chain, and .commit', () => {
@@ -65,4 +66,20 @@ test('emits description when present', () => {
 test('omits description when empty', () => {
   const out = emitWorkflow({ ...SEQ, description: '' });
   assert.doesNotMatch(out, /description:/);
+});
+
+test('imports steps from ./steps and uses them without createStep', () => {
+  const out = emitWorkflow({
+    ...SEQ,
+    steps: [
+      { kind: 'agent', ref: { kind: 'agent', id: 'research-agent', exportName: 'researchAgent' } },
+      { kind: 'step', ref: { kind: 'step', id: 'rephrase', exportName: 'rephrase' } },
+    ],
+    stepFiles: [{ id: 'rephrase', filePath: 'step/rephrase.ts', exportName: 'rephrase' }],
+    tools: [],
+  });
+  assert.match(out, /import \{ rephrase \} from '\.\/steps\/rephrase';/);
+  assert.match(out, /\.then\(createStep\(researchAgent\)\)/); // agent still wrapped
+  assert.match(out, /\.then\(rephrase\)/); // step used directly
+  assert.doesNotMatch(out, /createStep\(rephrase\)/); // step NOT wrapped
 });
